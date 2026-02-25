@@ -10,6 +10,9 @@ site/resources/
 # Do NOT commit this: it contains your personal Logseq pages.
 site/content/
 
+# Generated CSS — rebuilt from config.yaml colors:
+site/static/css/theme-colors.css
+
 # Local workspace
 .work/
 .env
