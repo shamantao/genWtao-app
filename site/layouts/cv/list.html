@@ -1,0 +1,56 @@
+{{- define "main" }}
+{{/*
+  ⚠️  PaperMod-specific — rewrite this file when migrating to a different theme.
+
+  This layout uses PaperMod-internal partials:
+    - breadcrumbs.html, translation_list.html : PaperMod-specific
+    - toc.html, anchored_headings.html : PaperMod-specific
+    - CSS classes .post-single, .post-header, .post-content, .post-footer
+      are targeted by site/static/css/custom.css (sidebar TOC)
+
+  Why this file exists: CV pages are _index.md → Hugo applies list.html
+  by default, which does not include the TOC partial. This layout forces
+  single.html rendering behavior.
+*/}}
+
+<article class="post-single">
+  <header class="post-header">
+    {{ partial "breadcrumbs.html" . }}
+    <h1 class="post-title entry-hint-parent">
+      {{ .Title }}
+    </h1>
+    {{- if .Description }}
+    <div class="post-description">
+      {{ .Description }}
+    </div>
+    {{- end }}
+    {{- if not (.Param "hideMeta") }}
+    <div class="post-meta">
+      {{- partial "translation_list.html" . -}}
+    </div>
+    {{- end }}
+  </header>
+
+  {{- if (.Param "ShowToc") }}
+  {{- partial "toc.html" . }}
+  {{- end }}
+
+  {{- if .Content }}
+  <div class="post-content">
+    {{- if not (.Param "disableAnchoredHeadings") }}
+    {{- partial "anchored_headings.html" .Content -}}
+    {{- else }}{{ .Content }}{{ end }}
+  </div>
+  {{- end }}
+
+  <footer class="post-footer">
+    {{- $tags := .Language.Params.Taxonomies.tag | default "tags" }}
+    <ul class="post-tags">
+      {{- range ($.GetTerms $tags) }}
+      <li><a href="{{ .Permalink }}">{{ .LinkTitle }}</a></li>
+      {{- end }}
+    </ul>
+  </footer>
+</article>
+
+{{- end }}{{/* end main */}}
