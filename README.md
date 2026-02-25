@@ -1,17 +1,18 @@
 # genWtao — Personal Site Generator (Logseq + Hugo)
 
-Pipeline: Logseq → GitHub Actions → Hugo → InfinityFree  
-Theme: [PaperMod](https://github.com/adityatelange/hugo-PaperMod)
+Pipeline: Logseq → GitHub Actions → Hugo → ftp host  
+Actual Hugo Theme: [PaperMod](https://github.com/adityatelange/hugo-PaperMod)
 
 ---
 
 ## How it works — 3 steps
 
-1. **Edit your pages** in Logseq on Mac (or Android via Dropbox)
-2. **Push to GitHub** via the Logseq Git plugin (from Mac)
-3. **Click "Run workflow"** on github.com → Actions → Generate and Deploy
+1. **Create 2 repo** on github, one for Graph, one for the app if you want to automate the pipeline with Github action. But you can do it manualy
+2. **Edit your pages** in Logseq on Desktop (or Smartphone via Dropsync)
+3. **Push Graph to GitHub** via the Logseq Git plugin
+4. After configuring secrets like *ftp host* and *Github token*, **Click "Run workflow"** on github.com → Actions → Generate and Deploy
 
-The build and deployment happen entirely in the cloud. Your Mac does not need to be on at step 3.
+The build and deployment happen entirely in the cloud. Your Computer does not need to be on at step 3.
 
 ---
 
@@ -31,7 +32,8 @@ date::       2026-02-24
 ```
 
 **All properties are required** for `post` pages (blog articles).  
-For `cv`, `home`, `curious`, `contact`: `date::` can be omitted (today's date is used automatically).
+All type are defined in config/config.yaml
+For type `cv`, `home`, `curious`, `contact`: `date::` can be omitted (today's date is used automatically).
 
 ---
 
@@ -192,7 +194,7 @@ genWtao-app/
 │   └── config.yaml           ← section types, FTP config, theme params
 ├── scripts/
 │   ├── logseq_to_hugo.py     ← Logseq → Hugo converter
-│   └── publish.sh            ← local script (Mac offline use)
+│   └── publish.sh            ← local script (Computer offline use)
 ├── site/
 │   ├── hugo.yaml             ← Hugo config + multilingual menus
 │   ├── themes/
@@ -285,7 +287,7 @@ If the local build fails → fix before pushing.
 
 ## Running the pipeline
 
-### From any browser (Mac or Android)
+### From any browser (Computer or Android)
 
 1. Go to `https://github.com/<your-username>/genWtao-app/actions`
 2. Click **Generate and Deploy**
@@ -294,7 +296,7 @@ If the local build fails → fix before pushing.
 
 ### Prerequisite: Logseq graph up to date on GitHub
 
-Before clicking Run workflow, the Logseq Git plugin (Mac) must have pushed the latest pages to your private Logseq graph repo.
+Before clicking Run workflow, the Logseq Git plugin (Computer) must have pushed the latest pages to your private Logseq graph repo.
 
 ---
 
@@ -332,4 +334,4 @@ Before clicking Run workflow, the Logseq Git plugin (Mac) must have pushed the l
 
 ## License
 
-[MIT](LICENSE) — Philippe Bertieri, 2026
+[MIT](LICENSE) — Shamantao, 2026
