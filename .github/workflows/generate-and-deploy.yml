@@ -1,0 +1,78 @@
+name: Generate and Deploy
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout du dépôt app (scripts, Hugo, layouts, thème PaperMod)
+      - name: Checkout genWtao-app
+        uses: actions/checkout@v4
+        with:
+          path: genWtao-app
+          submodules: true   # nécessaire pour cloner PaperMod (git submodule)
+
+      # 2. Checkout du graph Logseq (pages .md source)
+      #    Nécessite un secret GH_TOKEN (Personal Access Token)
+      #    car genWtao-graph est un dépôt privé.
+      - name: Checkout genWtao-graph
+        uses: actions/checkout@v4
+        with:
+          repository: shamantao/genWtao-graph
+          token: ${{ secrets.GH_TOKEN }}
+          path: genWtao-graph
+
+      # 3. Setup Python + dépendances
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python deps
+        run: pip install pyyaml
+
+      # 4. Export Logseq → Hugo content
+      - name: Export Logseq to Hugo
+        run: |
+          python3 genWtao-app/scripts/logseq_to_hugo.py \
+            --graph  genWtao-graph \
+            --output genWtao-app/site/content \
+            --config genWtao-app/config/config.yaml \
+            --clean
+
+      # 5. Setup Hugo
+      - name: Setup Hugo
+        uses: peaceiris/actions-hugo@v3
+        with:
+          hugo-version: '0.156.0'
+          extended: false
+
+      # 6. Build Hugo
+      - name: Build Hugo
+        run: |
+          cd genWtao-app/site
+          hugo --minify
+
+      # 7. Deploy to FTP (InfinityFree)
+      - name: Deploy to FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ftpupload.net
+          username: if0_41224106
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ./genWtao-app/site/public/
+          server-dir: /htdocs/
+
+      # 8. Résumé
+      - name: Summary
+        if: success()
+        run: |
+          echo "Site publie avec succes"
+          echo "https://genwtao.free.nf"
+
+      - name: Error details
+        if: failure()
+        run: echo "Echec - consulte les logs ci-dessus"

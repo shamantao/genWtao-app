@@ -1,0 +1,18 @@
+# macOS
+.DS_Store
+
+# Hugo build artifacts
+site/public/
+site/.hugo_build.lock
+site/resources/
+
+# Generated content — rebuilt at every run by logseq_to_hugo.py
+# Do NOT commit this: it contains your personal Logseq pages.
+site/content/
+
+# Local workspace
+.work/
+.env
+
+# Personal config — copy config.example.yaml and fill in your values
+config/config.yaml

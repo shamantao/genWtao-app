@@ -1,0 +1,96 @@
+version: 0.1.0
+
+# ──────────────────────────────────────────────────────────────
+# SETUP: copy this file to config.yaml and fill in your values.
+# config.yaml is gitignored — never commit it to a public repo.
+# ──────────────────────────────────────────────────────────────
+
+app:
+    name: MySite              # ← displayed name, used in logs
+    locale: en                # ← default locale (fr | en | zh-TW)
+
+hosting:
+    site_url: https://your-site.example.com
+    ftp:
+        host: ftpupload.net   # ← InfinityFree FTP host (or your own)
+        port: 21
+        FTP_USER: YOUR_FTP_USERNAME    # ← e.g. if0_12345678
+        remote_path: /htdocs           # ← remote upload path
+
+paths:
+    # Absolute path to your Logseq graph folder (the one synced via Dropbox/iCloud)
+    logseq: /path/to/your/logseq/graph
+    # Absolute path to this project's site/ folder
+    hugo_project: /path/to/genWtao-app/site
+    # Temporary working directory (created automatically, gitignored)
+    export_workdir: /path/to/genWtao-app/.work/export
+
+pipeline:
+    trigger:
+        enable_manual_dispatch: true
+        enable_cron: false
+    build:
+        command: hugo --minify
+        clean_before_build: true
+    publish:
+        deploy_method: ftp_mirror
+
+security:
+    secrets_provider: github_actions
+    # These must be set in GitHub → Settings → Secrets → Actions
+    required_env_vars:
+        - FTP_PASSWORD      # FTP password for your hosting account
+        - FORMSPREE_ID      # Formspree form ID (for the contact form)
+
+# ──────────────────────────────────────────────────────────────
+# Logseq type → Hugo section mapping
+# To add a new type: add a line here.
+# The value is the subfolder name inside content/<lang>/
+# An empty value "" means the page goes to the language root (_index.md)
+# ──────────────────────────────────────────────────────────────
+sections:
+    home: ""
+    cv: cv
+    post: blog
+    blog: blog
+    curious: curious
+    contact: contact
+
+# ──────────────────────────────────────────────────────────────
+# Logseq internal keys to strip from published content
+# ──────────────────────────────────────────────────────────────
+# Logseq inserts these as "key:: value" bullets for its own use.
+# They have no meaning in published HTML.
+logseq_internal_keys:
+  - collapsed
+  - id
+  - background-color
+  - heading
+  - card-last-reviewed
+  - card-next-schedule
+  - card-last-score
+  - card-ease-factor
+  - card-repeats
+  - card-last-interval
+  - logseq.order-list-type
+
+# ──────────────────────────────────────────────────────────────
+# Active Hugo theme and theme-specific front matter param mapping
+# ──────────────────────────────────────────────────────────────
+# To switch themes, update the right-hand values only.
+# Left-hand keys are the script's internal stable names.
+#
+# Examples:
+#   PaperMod : toc → ShowToc, toc_open → TocOpen, show_tags → ShowTags
+#   Congo    : toc → showTableOfContents (toc_open does not exist)
+#   Blowfish : toc → showTableOfContents
+theme: papermod
+theme_params:
+    toc: ShowToc
+    toc_open: TocOpen
+    show_tags: ShowTags
+
+formendpoints:
+    contact_form:
+        action: https://formspree.io/f/${FORMSPREE_ID}
+        method: POST
