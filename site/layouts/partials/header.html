@@ -81,11 +81,20 @@
                         <li>
                             <a href="{{- .Permalink -}}" title="{{ .Language.Params.languageAltTitle | default (.Language.LanguageName | emojify) | default (.Lang | title) }}"
                                 aria-label="{{ .Language.LanguageName | default (.Lang | title) }}">
-                                {{- /* Display flag + name from config.yaml languages: (via site.Data.languages).
-                                     Falls back to languageName or lang code if data file not generated. */ -}}
+                                {{- /* Display language according to config.yaml languages.display
+                                     abbr      → FR / EN / ZH-TW
+                                     name      → Français / English / 繁體中文
+                                     flag      → 🇫🇷 / 🇬🇧 / 🇹🇼
+                                     flag_name → 🇫🇷 Français / 🇬🇧 English / 🇹🇼 繁體中文  (default)
+                                     Falls back to languageName or lang code if data file absent. */ -}}
                                 {{- $langInfo := index site.Data.languages .Lang -}}
+                                {{- $display  := site.Data.languages.display | default "flag_name" -}}
                                 {{- if $langInfo -}}
-                                    {{- $langInfo.flag }} {{ $langInfo.name -}}
+                                    {{- if eq $display "abbr"      -}}{{- .Lang | upper -}}
+                                    {{- else if eq $display "name" -}}{{- $langInfo.name -}}
+                                    {{- else if eq $display "flag" -}}{{- $langInfo.flag -}}
+                                    {{- else -}}{{- $langInfo.flag }} {{ $langInfo.name -}}
+                                    {{- end -}}
                                 {{- else if (and site.Params.displayFullLangName (.Language.LanguageName)) -}}
                                     {{- .Language.LanguageName | emojify -}}
                                 {{- else -}}

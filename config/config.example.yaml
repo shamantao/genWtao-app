@@ -144,6 +144,9 @@ color_vars:
 # The script generates site/data/languages.yaml from this block (gitignored).
 # The header partial reads the flag from site.Data.languages.
 languages:
+    # How to display each language in the switcher.
+    # Options: abbr (FR) | name (Français) | flag (🇫🇷) | flag_name (🇫🇷 Français)
+    display: flag_name
     fr:
         name: "Français"
         flag: "🇫🇷"
