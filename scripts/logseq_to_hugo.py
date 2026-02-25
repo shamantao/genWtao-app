@@ -114,7 +114,7 @@ def load_config(config_path):
 # THEME COLOR CSS GENERATOR
 # ──────────────────────────────────────────────
 
-def generate_languages_data(languages, hugo_static_parent):
+def generate_languages_data(languages, hugo_static_parent, config_was_loaded):
     """
     Generate site/data/languages.yaml from config.yaml languages: block.
 
@@ -123,11 +123,22 @@ def generate_languages_data(languages, hugo_static_parent):
 
     Keys must match Hugo language codes (e.g. fr, en, zh-tw).
     Special key 'display' (abbr|name|flag|flag_name) controls the switcher format.
+
+    If config was not loaded (--config missing), the existing file is kept
+    untouched to avoid silently erasing the language settings.
     """
     import yaml as _yaml
     data_dir = Path(hugo_static_parent) / 'data'
-    data_dir.mkdir(parents=True, exist_ok=True)
     out_path = data_dir / 'languages.yaml'
+
+    if not config_was_loaded:
+        if out_path.exists():
+            print('  ℹ️  --config not provided — keeping existing data/languages.yaml unchanged.')
+        else:
+            print('  ⚠️  --config not provided and no data/languages.yaml found — language switcher will use fallback.')
+        return
+
+    data_dir.mkdir(parents=True, exist_ok=True)
 
     if not languages:
         out_path.write_text('# No languages: block defined in config.yaml\n', encoding='utf-8')
@@ -542,7 +553,7 @@ def main():
     generate_theme_colors_css(colors, color_vars, hugo_static)
 
     # Generate data/languages.yaml from config.yaml languages:
-    generate_languages_data(languages, output_dir.parent)
+    generate_languages_data(languages, output_dir.parent, config_was_loaded=args.config is not None)
 
     exported = []
     skipped  = []
