@@ -1,4 +1,4 @@
-version: 0.1.0
+version: 0.2.0
 
 # ──────────────────────────────────────────────────────────────
 # SETUP: copy this file to config.yaml and fill in your values.
@@ -90,11 +90,6 @@ theme_params:
     toc_open: TocOpen
     show_tags: ShowTags
 
-formendpoints:
-    contact_form:
-        action: https://formspree.io/f/${FORMSPREE_ID}
-        method: POST
-
 # ──────────────────────────────────────────────────────────────
 # Theme colors — managed from here, generated to site/static/css/theme-colors.css
 # ──────────────────────────────────────────────────────────────
@@ -141,3 +136,26 @@ color_vars:
     code_bg:       "--code-bg"
     code_block_bg: "--hljs-bg"
     border:        "--border"
+
+# ──────────────────────────────────────────────────────────────
+# Languages — display name and flag for the language switcher
+# ──────────────────────────────────────────────────────────────
+# Keys must match the Hugo language codes defined in site/hugo.yaml.
+# The script generates site/data/languages.yaml from this block (gitignored).
+# The header partial reads the flag from site.Data.languages.
+languages:
+    fr:
+        name: "Français"
+        flag: "🇫🇷"
+    en:
+        name: "English"
+        flag: "🇬🇧"
+    zh-tw:
+        name: "繁體中文"
+        flag: "🇹🇼"
+
+# for using formspree contact form in Hugo templates (e.g. layouts/partials/contact_form.html)
+formendpoints:
+    contact_form:
+        action: https://formspree.io/f/${FORMSPREE_ID}
+        method: POST

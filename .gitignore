@@ -13,6 +13,9 @@ site/content/
 # Generated CSS — rebuilt from config.yaml colors:
 site/static/css/theme-colors.css
 
+# Generated data — rebuilt from config.yaml languages:
+site/data/
+
 # Local workspace
 .work/
 .env

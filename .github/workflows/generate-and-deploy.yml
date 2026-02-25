@@ -52,6 +52,8 @@ jobs:
 
       # 6. Build Hugo
       - name: Build Hugo
+        env:
+          HUGO_PARAMS_FORMSPREE_ID: ${{ secrets.FORMSPREE_ID }}
         run: |
           cd genWtao-app/site
           hugo --minify
