@@ -1,0 +1,12 @@
+contact_name:
+  other: "Nom / Prénom"
+contact_email:
+  other: "Adresse email"
+contact_message:
+  other: "Message"
+contact_submit:
+  other: "Envoyer"
+contact_success:
+  other: "Votre message a été envoyé. Merci !"
+contact_linkedin:
+  other: "Également disponible sur"
