@@ -10,6 +10,9 @@ site/resources/
 # Do NOT commit this: it contains your personal Logseq pages.
 site/content/
 
+# Personal assets — copied from Logseq graph at every run
+site/static/assets/
+
 # Generated CSS — rebuilt from config.yaml colors:
 site/static/css/theme-colors.css
 
