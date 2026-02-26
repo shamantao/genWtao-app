@@ -87,8 +87,13 @@ fi
 echo "▶ Tagging: $TAG"
 git tag -a "$TAG" -m "$FULL_MSG"
 
-echo "▶ Pushing to origin..."
-git push origin main --tags
+if git remote get-url origin >/dev/null 2>&1; then
+    echo "▶ Pushing to origin..."
+    git push origin main --tags
+else
+    echo "  ⚠️  No 'origin' remote configured — skipping push."
+    echo "     Run: git remote add origin <url> && git push origin main --tags"
+fi
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
