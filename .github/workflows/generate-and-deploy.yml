@@ -34,7 +34,13 @@ jobs:
       - name: Install Python deps
         run: pip install pyyaml
 
-      # 4. Export Logseq → Hugo content
+      # 4. Restore config.yaml from GitHub secret
+      #    config.yaml is gitignored (contains personal data).
+      #    Store its full content as a GitHub Actions secret named CONFIG_YAML.
+      - name: Restore config.yaml
+        run: echo "${{ secrets.CONFIG_YAML }}" > genWtao-app/config/config.yaml
+
+      # 5. Export Logseq → Hugo content (generates hugo.yaml, theme-colors.css, languages.yaml)
       - name: Export Logseq to Hugo
         run: |
           python3 genWtao-app/scripts/logseq_to_hugo.py \
@@ -43,14 +49,14 @@ jobs:
             --config genWtao-app/config/config.yaml \
             --clean
 
-      # 5. Setup Hugo
+      # 6. Setup Hugo
       - name: Setup Hugo
         uses: peaceiris/actions-hugo@v3
         with:
           hugo-version: '0.156.0'
           extended: false
 
-      # 6. Build Hugo
+      # 7. Build Hugo
       - name: Build Hugo
         env:
           HUGO_PARAMS_FORMSPREE_ID: ${{ secrets.FORMSPREE_ID }}
@@ -58,7 +64,7 @@ jobs:
           cd genWtao-app/site
           hugo --minify
 
-      # 7. Deploy to FTP (InfinityFree)
+      # 8. Deploy to FTP (InfinityFree)
       - name: Deploy to FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
@@ -68,7 +74,7 @@ jobs:
           local-dir: ./genWtao-app/site/public/
           server-dir: /htdocs/
 
-      # 8. Summary
+      # 9. Summary
       - name: Summary
         if: success()
         run: |
