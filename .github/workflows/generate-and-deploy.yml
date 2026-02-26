@@ -8,16 +8,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout du dépôt app (scripts, Hugo, layouts, thème PaperMod)
+      # 1. Checkout app repo (scripts, Hugo, layouts, PaperMod theme)
       - name: Checkout genWtao-app
         uses: actions/checkout@v4
         with:
           path: genWtao-app
-          submodules: true   # nécessaire pour cloner PaperMod (git submodule)
+          submodules: true   # required to clone PaperMod (git submodule)
 
-      # 2. Checkout du graph Logseq (pages .md source)
-      #    Nécessite un secret GH_TOKEN (Personal Access Token)
-      #    car genWtao-graph est un dépôt privé.
+      # 2. Checkout Logseq graph (source .md pages)
+      #    Requires a GH_TOKEN secret (Personal Access Token)
+      #    because genWtao-graph is a private repo.
       - name: Checkout genWtao-graph
         uses: actions/checkout@v4
         with:
@@ -25,7 +25,7 @@ jobs:
           token: ${{ secrets.GH_TOKEN }}
           path: genWtao-graph
 
-      # 3. Setup Python + dépendances
+      # 3. Setup Python + dependencies
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -68,7 +68,7 @@ jobs:
           local-dir: ./genWtao-app/site/public/
           server-dir: /htdocs/
 
-      # 8. Résumé
+      # 8. Summary
       - name: Summary
         if: success()
         run: |

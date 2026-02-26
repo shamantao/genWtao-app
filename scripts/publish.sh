@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────
-# publish.sh — Pipeline complet genWtao
-# Usage :  ./scripts/publish.sh
-# Mobile : via iOS Shortcuts → SSH → ce script
+# publish.sh — Full genWtao pipeline
+# Usage:  ./scripts/publish.sh
+# Mobile: via iOS Shortcuts → SSH → this script
 # ─────────────────────────────────────────────────────────────
 set -euo pipefail
 
-# ── Chemins ──────────────────────────────────────────────────
+# ── Paths ────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_DIR="$(dirname "$SCRIPT_DIR")"
 CONFIG="$APP_DIR/config/config.yaml"
@@ -21,31 +21,31 @@ FTP_USER="YOUR_FTP_USER"
 FTP_REMOTE="/htdocs"
 SITE_URL="https://genwtao.free.nf"
 
-# Mot de passe FTP : depuis variable d'environnement ou fichier .env local
+# FTP password: from environment variable or local .env file
 if [[ -f "$APP_DIR/.env" ]]; then
     source "$APP_DIR/.env"
 fi
 FTP_PASSWORD="${FTP_PASSWORD:-}"
 
-# ── Fonctions utilitaires ─────────────────────────────────────
+# ── Utility functions ─────────────────────────────────────────
 log()  { echo ""; echo "▶ $*"; }
 ok()   { echo "  ✅ $*"; }
 fail() { echo "  ❌ $*"; exit 1; }
 
-# ── Vérifications préalables ─────────────────────────────────
-log "Vérification de l'environnement"
+# ── Pre-flight checks ────────────────────────────────────────
+log "Checking environment"
 
-command -v hugo   >/dev/null 2>&1 || fail "Hugo non installé. Lance : brew install hugo"
-command -v python3 >/dev/null 2>&1 || fail "Python3 requis"
+command -v hugo   >/dev/null 2>&1 || fail "Hugo not installed. Run: brew install hugo"
+command -v python3 >/dev/null 2>&1 || fail "Python3 required"
 
-[[ -d "$LOGSEQ_GRAPH" ]]   || fail "Graph Logseq introuvable : $LOGSEQ_GRAPH"
-[[ -d "$HUGO_PROJECT" ]]   || fail "Projet Hugo introuvable : $HUGO_PROJECT"
-[[ -n "$FTP_PASSWORD" ]]   || fail "FTP_PASSWORD non défini. Crée $APP_DIR/.env avec FTP_PASSWORD=tonmotdepasse"
+[[ -d "$LOGSEQ_GRAPH" ]]   || fail "Logseq graph not found: $LOGSEQ_GRAPH"
+[[ -d "$HUGO_PROJECT" ]]   || fail "Hugo project not found: $HUGO_PROJECT"
+[[ -n "$FTP_PASSWORD" ]]   || fail "FTP_PASSWORD not set. Create $APP_DIR/.env with FTP_PASSWORD=yourpassword"
 
-ok "Environnement OK"
+ok "Environment OK"
 
-# ── Étape 1 : Export Logseq → Hugo ───────────────────────────
-log "Étape 1/3 : Export Logseq → Hugo"
+# ── Step 1: Export Logseq → Hugo ─────────────────────────────
+log "Step 1/3: Export Logseq → Hugo"
 
 python3 "$SCRIPT_DIR/logseq_to_hugo.py" \
     --graph  "$LOGSEQ_GRAPH" \
@@ -53,20 +53,20 @@ python3 "$SCRIPT_DIR/logseq_to_hugo.py" \
     --config "$CONFIG" \
     --clean
 
-ok "Export terminé"
+ok "Export done"
 
-# ── Étape 2 : Build Hugo ──────────────────────────────────────
-log "Étape 2/3 : Build Hugo"
+# ── Step 2: Build Hugo ───────────────────────────────────────
+log "Step 2/3: Build Hugo"
 
 cd "$HUGO_PROJECT"
 rm -rf "$HUGO_PUBLIC"
 hugo --minify --logLevel warn
 
 PAGES=$(find "$HUGO_PUBLIC" -name "*.html" | wc -l | tr -d ' ')
-ok "Build terminé — $PAGES pages générées"
+ok "Build done — $PAGES pages generated"
 
-# ── Étape 3 : Upload FTP ─────────────────────────────────────
-log "Étape 3/3 : Upload FTP → $SITE_URL"
+# ── Step 3: Upload FTP ───────────────────────────────────────
+log "Step 3/3: Upload FTP → $SITE_URL"
 
 if command -v lftp >/dev/null 2>&1; then
     lftp -c "
@@ -75,20 +75,20 @@ if command -v lftp >/dev/null 2>&1; then
         mirror --reverse --delete --verbose=1 $HUGO_PUBLIC $FTP_REMOTE
     "
 elif command -v curl >/dev/null 2>&1; then
-    # Fallback curl si lftp absent (plus lent)
+    # Fallback to curl if lftp is missing (slower)
     find "$HUGO_PUBLIC" -type f | while read -r file; do
         REMOTE_PATH="${file#$HUGO_PUBLIC}"
         curl -s --ftp-create-dirs -T "$file" \
             "ftp://$FTP_USER:$FTP_PASSWORD@$FTP_HOST$FTP_REMOTE$REMOTE_PATH" || true
     done
 else
-    fail "lftp ou curl requis pour le déploiement FTP"
+    fail "lftp or curl required for FTP deployment"
 fi
 
-ok "Upload FTP terminé"
+ok "FTP upload done"
 
-# ── Résumé ────────────────────────────────────────────────────
+# ── Summary ──────────────────────────────────────────────────
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "🚀  Site publié : $SITE_URL"
+echo "🚀  Site published: $SITE_URL"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

@@ -162,3 +162,125 @@ formendpoints:
     contact_form:
         action: https://formspree.io/f/${FORMSPREE_ID}
         method: POST
+
+# ──────────────────────────────────────────────────────────────
+# Hugo configuration — generates site/hugo.yaml (gitignored)
+# ──────────────────────────────────────────────────────────────
+# This entire block is written as-is to site/hugo.yaml by the script.
+# baseURL is auto-derived from hosting.site_url above.
+# Edit here, not in site/hugo.yaml (which is regenerated on every run).
+hugo:
+    title: "Your Site Title"
+    defaultContentLanguage: "fr"
+    defaultContentLanguageInSubdir: true
+    enableRobotsTXT: true
+    theme: PaperMod
+
+    languages:
+        fr:
+            weight: 1
+            languageName: "Français"
+            contentDir: content/fr
+            params:
+                homeInfoParams:
+                    Title: "Bonjour 👋"
+                    Content: "Your site description in French."
+            menu:
+                main:
+                    - name: CV
+                      identifier: fr-cv
+                      url: /fr/cv/
+                      weight: 10
+                    - name: Blog
+                      identifier: fr-blog
+                      url: /fr/blog/
+                      weight: 20
+                    - name: Curiosités
+                      identifier: fr-curious
+                      url: /fr/curious/
+                      weight: 30
+                    - name: Contact
+                      identifier: fr-contact
+                      url: /fr/contact/
+                      weight: 40
+        en:
+            weight: 2
+            languageName: "English"
+            contentDir: content/en
+            params:
+                homeInfoParams:
+                    Title: "Hello 👋"
+                    Content: "Your site description in English."
+            menu:
+                main:
+                    - name: CV
+                      identifier: en-cv
+                      url: /en/cv/
+                      weight: 10
+                    - name: Blog
+                      identifier: en-blog
+                      url: /en/blog/
+                      weight: 20
+                    - name: Curious
+                      identifier: en-curious
+                      url: /en/curious/
+                      weight: 30
+                    - name: Contact
+                      identifier: en-contact
+                      url: /en/contact/
+                      weight: 40
+        zh-tw:
+            weight: 3
+            languageName: "繁體中文"
+            contentDir: content/zh-tw
+            params:
+                homeInfoParams:
+                    Title: "你好 👋"
+                    Content: "Your site description in Chinese."
+            menu:
+                main:
+                    - name: 履歷
+                      identifier: zhtw-cv
+                      url: /zh-tw/cv/
+                      weight: 10
+                    - name: 部落格
+                      identifier: zhtw-blog
+                      url: /zh-tw/blog/
+                      weight: 20
+                    - name: 好奇心
+                      identifier: zhtw-curious
+                      url: /zh-tw/curious/
+                      weight: 30
+                    - name: 聯絡
+                      identifier: zhtw-contact
+                      url: /zh-tw/contact/
+                      weight: 40
+
+    params:
+        author: "Your Name"
+        description: "Site generated from Logseq"
+        formspree_id: ""
+        # PaperMod-specific params
+        env: production
+        ShowReadingTime: false
+        ShowShareButtons: false
+        ShowPostNavLinks: true
+        ShowBreadCrumbs: false
+        ShowCodeCopyButtons: false
+        ShowRssButtonInSectionTermList: false
+        ShowTags: true
+        disableScrollToTop: false
+        comments: false
+        hidemeta: false
+        hideSummary: false
+        showtoc: false
+        tocopen: false
+
+    taxonomies:
+        tag: tags
+        category: categories
+
+    markup:
+        goldmark:
+            renderer:
+                unsafe: true

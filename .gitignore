@@ -10,6 +10,9 @@ site/resources/
 # Do NOT commit this: it contains your personal Logseq pages.
 site/content/
 
+# Hugo config — generated from config.yaml hugo: block (contains personal data)
+site/hugo.yaml
+
 # Personal assets — copied from Logseq graph at every run
 site/static/assets/
 
