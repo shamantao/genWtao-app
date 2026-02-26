@@ -1,20 +1,20 @@
 /*
- * custom.css — CSS fonctionnel multi-thème
+ * custom.css — Functional multi-theme CSS
  *
- * Chargé via site/layouts/partials/extend_head.html, supporté par
- * PaperMod, Congo, Blowfish et la plupart des thèmes Hugo.
+ * Loaded via site/layouts/partials/extend_head.html, supported by
+ * PaperMod, Congo, Blowfish and most Hugo themes.
  *
- * ⚠️  Ce fichier contient du CSS qui peut cibler des classes spécifiques
- *     au thème (ex: .post-single = PaperMod). Si on change de thème,
- *     mettre à jour les sélecteurs CSS — le contenu Markdown ne change pas.
+ * ⚠️  This file may target theme-specific CSS classes
+ *     (e.g. .post-single = PaperMod). If you switch themes,
+ *     update the CSS selectors — Markdown content stays the same.
  * ──────────────────────────────────────────────────────────────────────────
  */
 
 
 /* ══════════════════════════════════════════════════════════
-   SIDEBAR TOC — pages avec toc:: true (ShowToc: true)
-   Sélecteur: .post-single:has(.toc) → PaperMod-specific
-   À adapter si migration de thème (changer .post-single/.toc)
+   SIDEBAR TOC — pages with toc:: true (ShowToc: true)
+   Selector: .post-single:has(.toc) → PaperMod-specific
+   Adapt when migrating themes (change .post-single/.toc)
    ══════════════════════════════════════════════════════════ */
 
 @media (min-width: 769px) {
@@ -23,16 +23,16 @@
         grid-template-columns: 220px 1fr;
         grid-template-rows: auto auto 1fr auto;
         column-gap: 2.5rem;
-        max-width: 1100px; /* élargi vs 750px PaperMod default */
+        max-width: 1100px; /* widened vs 750px PaperMod default */
     }
 
-    /* Header (titre + meta) : pleine largeur */
+    /* Header (title + meta): full width */
     .post-single:has(.toc) .post-header {
         grid-column: 1 / -1;
         grid-row: 1;
     }
 
-    /* TOC : colonne gauche, sticky */
+    /* TOC: left column, sticky */
     .post-single:has(.toc) .toc {
         grid-column: 1;
         grid-row: 2 / 5;
@@ -44,21 +44,21 @@
         font-size: 0.875rem;
     }
 
-    /* Contenu principal : colonne droite */
+    /* Main content: right column */
     .post-single:has(.toc) .post-content {
         grid-column: 2;
         grid-row: 2;
-        min-width: 0; /* évite overflow sur contenu large */
+        min-width: 0; /* prevents overflow on wide content */
     }
 
-    /* Footer (tags) : colonne droite */
+    /* Footer (tags): right column */
     .post-single:has(.toc) .post-footer {
         grid-column: 2;
         grid-row: 3;
     }
 }
 
-/* Mobile : retour à une colonne — le TOC s'affiche avant le contenu */
+/* Mobile: back to single column — TOC displays above content */
 @media (max-width: 768px) {
     .post-single:has(.toc) {
         display: block;

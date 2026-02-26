@@ -70,8 +70,8 @@
                 {{- if (not site.Params.disableLangToggle) }}
                     {{- $lang := .Lang}}
                     {{- $separator := or $label_text (not site.Params.disableThemeToggle)}}
-                    {{- /* Utilise les traductions de la PAGE courante si dispo,
-                         sinon repli sur les accueils de chaque langue (comportement PaperMod par défaut) */ -}}
+                    {{- /* Use the current PAGE's translations if available,
+                         otherwise fall back to each language's home page (default PaperMod behaviour) */ -}}
                     {{- $transSource := or .Translations site.Home.Translations }}
                     {{- with $transSource }}
                     <ul class="lang-switch">
