@@ -7,14 +7,13 @@
 #   ./scripts/release.sh                        # opens $EDITOR for message
 #
 # What it does:
-#   1. Reads version from config.example.yaml (the public config)
-#   2. Syncs that version into config.yaml (if present)
-#   3. Stages all modified tracked files + new untracked files
-#   4. Commits with your message (prefixed with version)
-#   5. Creates an annotated git tag v<version>
-#   6. Pushes commit + tag to origin
+#   1. Reads version from config/config.yaml (committed engine config)
+#   2. Stages all modified tracked files + new untracked files
+#   3. Commits with your message (prefixed with version)
+#   4. Creates an annotated git tag v<version>
+#   5. Pushes commit + tag to origin
 #
-# To bump the version: edit config.example.yaml line 1 BEFORE running.
+# To bump the version: edit config/config.yaml line 1 BEFORE running.
 # ─────────────────────────────────────────────────────────────
 set -euo pipefail
 
@@ -22,18 +21,17 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$APP_DIR"
 
-EXAMPLE_CFG="config/config.example.yaml"
-LOCAL_CFG="config/config.yaml"
+CONFIG_CFG="config/config.yaml"
 
 # ── Read version ──────────────────────────────────────────────
-if [[ ! -f "$EXAMPLE_CFG" ]]; then
-    echo "❌ $EXAMPLE_CFG not found" >&2
+if [[ ! -f "$CONFIG_CFG" ]]; then
+    echo "❌ $CONFIG_CFG not found" >&2
     exit 1
 fi
 
-VERSION=$(grep -m1 '^version:' "$EXAMPLE_CFG" | sed 's/version:[[:space:]]*//')
+VERSION=$(grep -m1 '^version:' "$CONFIG_CFG" | sed 's/version:[[:space:]]*//')
 if [[ -z "$VERSION" ]]; then
-    echo "❌ No version: found in $EXAMPLE_CFG" >&2
+    echo "❌ No version: found in $CONFIG_CFG" >&2
     exit 1
 fi
 
@@ -42,14 +40,8 @@ echo "📦 Version: $VERSION  →  tag: $TAG"
 
 # ── Check tag doesn't already exist ──────────────────────────
 if git tag -l "$TAG" | grep -q "$TAG"; then
-    echo "❌ Tag $TAG already exists. Bump version in $EXAMPLE_CFG first." >&2
+    echo "❌ Tag $TAG already exists. Bump version in $CONFIG_CFG first." >&2
     exit 1
-fi
-
-# ── Sync version into local config.yaml (gitignored) ─────────
-if [[ -f "$LOCAL_CFG" ]]; then
-    sed -i '' "1s/^version:.*/version: $VERSION/" "$LOCAL_CFG"
-    echo "  ✅ Synced version in $LOCAL_CFG"
 fi
 
 # ── Commit message ────────────────────────────────────────────

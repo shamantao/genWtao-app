@@ -1,0 +1,77 @@
+version: 0.4.0
+
+# Logseq type -> Hugo section mapping
+# To add a new type: add a line here.
+# The value is the subfolder name inside content/<lang>/
+# An empty value "" means the page goes to the language root (_index.md)
+sections:
+    home: ""
+    cv: cv
+    post: blog
+    blog: blog
+    curious: curious
+    contact: contact
+
+# Logseq internal keys to strip from content
+logseq_internal_keys:
+  - collapsed
+  - id
+  - background-color
+  - heading
+  - card-last-reviewed
+  - card-next-schedule
+  - card-last-score
+  - card-ease-factor
+  - card-repeats
+  - card-last-interval
+  - logseq.order-list-type
+
+# Active Hugo theme and theme-specific front matter param mapping
+# To switch themes, update the right-hand values only.
+theme: papermod
+theme_params:
+    toc: ShowToc
+    toc_open: TocOpen
+    show_tags: ShowTags
+
+# Form endpoints - template with env var placeholder
+formendpoints:
+    contact_form:
+        action: "https://formspree.io/f/${FORMSPREE_ID}"
+        method: POST
+
+# Theme colors - generates site/static/css/theme-colors.css
+colors:
+    light:
+        background:    "rgb(255, 255, 255)"
+        surface:       "rgb(255, 255, 255)"
+        text_primary:  "rgb(30, 30, 30)"
+        text_secondary: "rgb(108, 108, 108)"
+        text_content:  "rgb(44, 44, 44)"
+        surface_muted: "rgb(214, 214, 214)"
+        code_bg:       "rgb(245, 245, 245)"
+        code_block_bg: "rgb(28, 29, 33)"
+        border:        "rgb(238, 238, 238)"
+    dark:
+        background:    "rgb(29, 30, 32)"
+        surface:       "rgb(46, 46, 51)"
+        text_primary:  "rgb(218, 218, 219)"
+        text_secondary: "rgb(155, 156, 157)"
+        text_content:  "rgb(196, 196, 197)"
+        surface_muted: "rgb(65, 66, 68)"
+        code_bg:       "rgb(55, 56, 62)"
+        code_block_bg: "rgb(46, 46, 51)"
+        border:        "rgb(51, 51, 51)"
+
+# Color variable mapping - semantic name -> CSS variable for active theme
+# Switching themes = update this mapping only.
+color_vars:
+    background:    "--theme"
+    surface:       "--entry"
+    text_primary:  "--primary"
+    text_secondary: "--secondary"
+    text_content:  "--content"
+    surface_muted: "--tertiary"
+    code_bg:       "--code-bg"
+    code_block_bg: "--hljs-bg"
+    border:        "--border"

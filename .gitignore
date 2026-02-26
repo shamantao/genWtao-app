@@ -25,6 +25,3 @@ site/data/
 # Local workspace
 .work/
 .env
-
-# Personal config — copy config.example.yaml and fill in your values
-config/config.yaml

@@ -1,0 +1,117 @@
+# ──────────────────────────────────────────────────────────────
+# site.example.yaml — Template for your personal site configuration
+# ──────────────────────────────────────────────────────────────
+# Copy this file to your Logseq graph root folder and rename it site.yaml.
+# Fill in your own values. The engine reads it via --site.
+# ──────────────────────────────────────────────────────────────
+
+# ──────────────────────────────────────────────────────────────
+# Hosting — where the site is deployed
+# ──────────────────────────────────────────────────────────────
+hosting:
+    site_url: https://your-site.example.com
+    ftp:
+        host: ftp.example.com
+        port: 21
+        user: your_ftp_username
+        remote_path: /htdocs
+
+# ──────────────────────────────────────────────────────────────
+# Languages — display name and flag for the language switcher
+# ──────────────────────────────────────────────────────────────
+# Keys must match the Hugo language codes defined in the hugo: block below.
+# Options for display: abbr (FR) | name (Français) | flag (🇫🇷) | flag_name (🇫🇷 Français)
+languages:
+    display: flag
+    fr:
+        name: "Français"
+        flag: "🇫🇷"
+    en:
+        name: "English"
+        flag: "🇬🇧"
+
+# ──────────────────────────────────────────────────────────────
+# Hugo configuration — generates site/hugo.yaml (gitignored)
+# ──────────────────────────────────────────────────────────────
+# This entire block is written as-is to site/hugo.yaml by the script.
+# baseURL is auto-derived from hosting.site_url above.
+hugo:
+    title: "Your Site Title"
+    defaultContentLanguage: "fr"
+    defaultContentLanguageInSubdir: true
+    enableRobotsTXT: true
+    theme: PaperMod
+
+    languages:
+        fr:
+            weight: 1
+            languageName: "Français"
+            contentDir: content/fr
+            params:
+                homeInfoParams:
+                    Title: "Bonjour 👋"
+                    Content: "Your site description."
+            menu:
+                main:
+                    - name: CV
+                      identifier: fr-cv
+                      url: /fr/cv/
+                      weight: 10
+                    - name: Blog
+                      identifier: fr-blog
+                      url: /fr/blog/
+                      weight: 20
+                    - name: Contact
+                      identifier: fr-contact
+                      url: /fr/contact/
+                      weight: 30
+        en:
+            weight: 2
+            languageName: "English"
+            contentDir: content/en
+            params:
+                homeInfoParams:
+                    Title: "Hello 👋"
+                    Content: "Your site description."
+            menu:
+                main:
+                    - name: CV
+                      identifier: en-cv
+                      url: /en/cv/
+                      weight: 10
+                    - name: Blog
+                      identifier: en-blog
+                      url: /en/blog/
+                      weight: 20
+                    - name: Contact
+                      identifier: en-contact
+                      url: /en/contact/
+                      weight: 30
+
+    params:
+        author: "Your Name"
+        description: "Site generated from Logseq"
+        formspree_id: ""
+        env: production
+        ShowReadingTime: false
+        ShowShareButtons: false
+        ShowPostNavLinks: true
+        ShowBreadCrumbs: false
+        ShowCodeCopyButtons: false
+        ShowRssButtonInSectionTermList: false
+        ShowTags: true
+        disableScrollToTop: false
+        comments: false
+        hidemeta: false
+        hideSummary: false
+        showtoc: false
+        tocopen: false
+
+    taxonomies:
+        tag: tags
+        category: categories
+
+    markup:
+        goldmark:
+            renderer:
+                unsafe: true
