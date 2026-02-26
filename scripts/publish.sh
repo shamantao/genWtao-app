@@ -50,6 +50,7 @@ log "Étape 1/3 : Export Logseq → Hugo"
 python3 "$SCRIPT_DIR/logseq_to_hugo.py" \
     --graph  "$LOGSEQ_GRAPH" \
     --output "$HUGO_CONTENT" \
+    --config "$CONFIG" \
     --clean
 
 ok "Export terminé"
