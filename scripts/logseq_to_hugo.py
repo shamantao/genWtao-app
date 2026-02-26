@@ -6,7 +6,11 @@ Converts Logseq pages (with public:: true) to Hugo Markdown files.
 Usage:
     python3 logseq_to_hugo.py --graph <graph_folder> --output <hugo_content_folder>
     python3 logseq_to_hugo.py --graph <graph_folder> --output <hugo_content_folder> \
-                              --config <path/config.yaml> [--clean]
+                              --config <config/config.yaml> --site <site.yaml> [--clean]
+
+Two configuration files:
+    --config  Engine config (sections, theme, colors) — committed, shared.
+    --site    Personal site config (languages, hugo, hosting) — private, in Logseq graph.
 
 Supported Logseq syntax:
     [[Page]]                          → plain text
@@ -76,8 +80,9 @@ DEFAULT_THEME_PARAMS = {
 
 def load_config(config_path):
     """
-    Load full configuration from config.yaml.
-    Returns a dict with 'sections', 'logseq_internal_keys', and 'theme_params'.
+    Load engine configuration from config/config.yaml.
+    Returns a dict with 'sections', 'logseq_internal_keys', 'theme_params',
+    'colors', and 'color_vars'.  No personal data.
     """
     defaults = {
         'sections':             DEFAULT_SECTIONS,
@@ -85,9 +90,6 @@ def load_config(config_path):
         'theme_params':         dict(DEFAULT_THEME_PARAMS),
         'colors':               {},
         'color_vars':           {},
-        'languages':            {},
-        'hugo':                 {},
-        'hosting':              {},
     }
     if not config_path:
         return defaults
@@ -105,12 +107,35 @@ def load_config(config_path):
             'theme_params': tp,
             'colors':    cfg.get('colors', {}),
             'color_vars': cfg.get('color_vars', {}),
+        }
+    except Exception as e:
+        print(f"  ⚠️  Config not loaded ({e}), using defaults.", file=sys.stderr)
+        return defaults
+
+
+def load_site_config(site_path):
+    """
+    Load personal site configuration from site.yaml (lives in Logseq graph).
+    Returns a dict with 'languages', 'hugo', and 'hosting'.
+    """
+    defaults = {
+        'languages': {},
+        'hugo':      {},
+        'hosting':   {},
+    }
+    if not site_path:
+        return defaults
+    try:
+        import yaml
+        with open(site_path, encoding='utf-8') as f:
+            cfg = yaml.safe_load(f)
+        return {
             'languages': cfg.get('languages', {}),
             'hugo':      cfg.get('hugo', {}),
             'hosting':   cfg.get('hosting', {}),
         }
     except Exception as e:
-        print(f"  ⚠️  Config not loaded ({e}), using defaults.", file=sys.stderr)
+        print(f"  ⚠️  Site config not loaded ({e}), using defaults.", file=sys.stderr)
         return defaults
 
 
@@ -552,7 +577,8 @@ def main():
     parser = argparse.ArgumentParser(description='Convert a Logseq graph to Hugo content')
     parser.add_argument('--graph',  required=True, help='Logseq graph root folder')
     parser.add_argument('--output', required=True, help='Hugo content/ folder')
-    parser.add_argument('--config', default=None,  help='Path to config.yaml (optional)')
+    parser.add_argument('--config', default=None,  help='Path to config/config.yaml (engine config)')
+    parser.add_argument('--site',   default=None,  help='Path to site.yaml (personal site config)')
     parser.add_argument('--clean',  action='store_true', help='Remove output folder before export')
     args = parser.parse_args()
 
@@ -563,15 +589,20 @@ def main():
         print(f"❌ Graph folder not found: {graph_dir}", file=sys.stderr)
         sys.exit(1)
 
+    # Load engine config (sections, theme, colors — committed, shared)
     cfg           = load_config(args.config)
     sections_map  = cfg['sections']
     internal_keys = cfg['logseq_internal_keys']
     theme_params  = cfg['theme_params']
     colors        = cfg['colors']
     color_vars    = cfg['color_vars']
-    languages     = cfg['languages']
-    hugo_block    = cfg['hugo']
-    hosting       = cfg['hosting']
+
+    # Load personal site config (languages, hugo, hosting — private)
+    site_cfg  = load_site_config(args.site)
+    languages  = site_cfg['languages']
+    hugo_block = site_cfg['hugo']
+    hosting    = site_cfg['hosting']
+
     print(f"  ℹ️  Sections: {list(sections_map.keys())}")
     print(f"  ℹ️  Ignored internal keys: {sorted(internal_keys)}")
     print(f"  ℹ️  Theme params: {theme_params}")
@@ -599,16 +630,16 @@ def main():
     else:
         print(f"  ℹ️  No assets folder found in {graph_dir}")
 
-    # Generate hugo.yaml from config.yaml hugo: block
-    config_was_loaded = args.config is not None
-    generate_hugo_yaml(hugo_block, hosting, output_dir.parent, config_was_loaded)
+    # Generate hugo.yaml from site.yaml hugo: block
+    site_was_loaded = args.site is not None
+    generate_hugo_yaml(hugo_block, hosting, output_dir.parent, site_was_loaded)
 
     # Generate theme-colors.css from config.yaml colors: and color_vars:
     hugo_static = output_dir.parent / 'static'
     generate_theme_colors_css(colors, color_vars, hugo_static)
 
-    # Generate data/languages.yaml from config.yaml languages:
-    generate_languages_data(languages, output_dir.parent, config_was_loaded=config_was_loaded)
+    # Generate data/languages.yaml from site.yaml languages:
+    generate_languages_data(languages, output_dir.parent, config_was_loaded=site_was_loaded)
 
     exported = []
     skipped  = []

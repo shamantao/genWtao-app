@@ -13,11 +13,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: genWtao-app
-          submodules: true   # required to clone PaperMod (git submodule)
+          submodules: true
 
-      # 2. Checkout Logseq graph (source .md pages)
-      #    Requires a GH_TOKEN secret (Personal Access Token)
-      #    because genWtao-graph is a private repo.
+      # 2. Checkout Logseq graph (source .md pages + site.yaml)
       - name: Checkout genWtao-graph
         uses: actions/checkout@v4
         with:
@@ -34,53 +32,25 @@ jobs:
       - name: Install Python deps
         run: pip install pyyaml
 
-      # 4. Restore config.yaml from GitHub secret
-      #    config.yaml is gitignored (contains personal data).
-      #    Store its full content as a GitHub Actions secret named CONFIG_YAML.
-      - name: Restore config.yaml
-        run: echo "${{ secrets.CONFIG_YAML }}" > genWtao-app/config/config.yaml
-
-      # 5. Export Logseq → Hugo content (generates hugo.yaml, theme-colors.css, languages.yaml)
-      - name: Export Logseq to Hugo
+      # 4. Export Logseq → Hugo content
+      #    --config reads engine config (co      #    --config reads engine config (co      #    --config reads engine config (co      #    --config reads engine confi        #    --config readtho   g      #    --configlog    to      #    --confi        #    --config reads \
+      #          #          #          #          #          #          #      p/      #          #          #    --site   genWtao-graph/site.yaml \
+            --c            --c           o
+            --c                         --c                         --c                   ugo-version: '0.156.0'
+          extend          extend          extend
+              B              B              B              _FORMSPREE_ID: ${{ secrets.FORMSPREE_ID }}
         run: |
-          python3 genWtao-app/scripts/logseq_to_hugo.py \
-            --graph  genWtao-graph \
-            --output genWtao-app/site/content \
-            --config genWtao-app/config/config.yaml \
-            --clean
+          cd gen          cd gen          cd gen     
 
-      # 6. Setup Hugo
-      - name: Setup Hugo
-        uses: peaceiris/actions-hugo@v3
-        with:
-          hugo-version: '0.156.0'
-          extended: false
 
-      # 7. Build Hugo
-      - name: Build Hugo
-        env:
-          HUGO_PARAMS_FORMSPREE_ID: ${{ secrets.FORMSPREE_ID }}
-        run: |
-          cd genWtao-app/site
-          hugo --minify
-
-      # 8. Deploy to FTP (InfinityFree)
-      - name: Deploy to FTP
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ftpupload.net
-          username: if0_41224106
+         cd gen         ntials from site.yaml
+      - name: Read hosting confi      - name: Read hosting confun:      - name: Read hosting conf         - name: Read hosting conpen('genWtao-graph/site.yaml') as f:
+                                                                                                                                                                                                                                                                                                                                                                                                                                               )"                                         o                                                                                                            server                                                  username: ${{ steps.hosting.outputs.ftp_user }}
           password: ${{ secrets.FTP_PASSWORD }}
           local-dir: ./genWtao-app/site/public/
-          server-dir: /htdocs/
-
-      # 9. Summary
-      - name: Summary
-        if: success()
-        run: |
-          echo "Site publie avec succes"
-          echo "https://genwtao.free.nf"
+          server-dir: /htdoc          server-dir: /htdoc          server
+                               un: echo "Site deployed successfully"
 
       - name: Error details
         if: failure()
-        run: echo "Echec - consulte les logs ci-dessus"
+        run: echo "Deployment failed — check logs above"
