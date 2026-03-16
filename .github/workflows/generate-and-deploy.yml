@@ -8,14 +8,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout app repo (scripts, Hugo, layouts, PaperMod theme)
       - name: Checkout genWtao-app
         uses: actions/checkout@v4
         with:
           path: genWtao-app
           submodules: true
 
-      # 2. Checkout Logseq graph (source .md pages + site.yaml)
       - name: Checkout genWtao-graph
         uses: actions/checkout@v4
         with:
@@ -23,7 +21,6 @@ jobs:
           token: ${{ secrets.GH_TOKEN }}
           path: genWtao-graph
 
-      # 3. Setup Python + dependencies
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -32,24 +29,76 @@ jobs:
       - name: Install Python deps
         run: pip install pyyaml
 
-      # 4. Export Logseq → Hugo content
-      #    --config reads engine config (co      #    --config reads engine config (co      #    --config reads engine config (co      #    --config reads engine confi        #    --config readtho   g      #    --configlog    to      #    --confi        #    --config reads \
-      #          #          #          #          #          #          #      p/      #          #          #    --site   genWtao-graph/site.yaml \
-            --c            --c           o
-            --c                         --c                         --c                   ugo-version: '0.156.0'
-          extend          extend          extend
-              B              B              B              _FORMSPREE_ID: ${{ secrets.FORMSPREE_ID }}
+      - name: Export Logseq to Hugo
         run: |
-          cd gen          cd gen          cd gen     
+          python3 genWtao-app/scripts/logseq_to_hugo.py \
+            --graph  genWtao-graph \
+            --output genWtao-app/site/content \
+            --config genWtao-app/config/config.yaml \
+            --site   genWtao-graph/site.yaml \
+            --clean
 
+      - name: Setup Hugo
+        uses: peaceiris/actions-hugo@v3
+        with:
+          hugo-version: '0.156.0'
+          extended: false
 
-         cd gen         ntials from site.yaml
-      - name: Read hosting confi      - name: Read hosting confun:      - name: Read hosting conf         - name: Read hosting conpen('genWtao-graph/site.yaml') as f:
-                                                                                                                                                                                                                                                                                                                                                                                                                                               )"                                         o                                                                                                            server                                                  username: ${{ steps.hosting.outputs.ftp_user }}
+      - name: Build Hugo
+        env:
+          HUGO_PARAMS_FORMSPREE_ID: ${{ secrets.FORMSPREE_ID }}
+        run: |
+          cd genWtao-app/site
+          hugo --minify
+
+      - name: Read hosting config
+        id: hosting
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import sys
+          import yaml
+
+          with open('genWtao-graph/site.yaml', encoding='utf-8') as handle:
+              site = yaml.safe_load(handle) or {}
+
+          hosting = site.get('hosting', {})
+          ftp = hosting.get('ftp', {})
+
+          missing = []
+          if not hosting.get('site_url'):
+            missing.append('hosting.site_url')
+          if not ftp.get('host'):
+            missing.append('hosting.ftp.host')
+          if not ftp.get('user'):
+            missing.append('hosting.ftp.user')
+
+          if missing:
+            print(f"Missing required site.yaml values: {', '.join(missing)}", file=sys.stderr)
+            sys.exit(1)
+
+          print(f"site_url={hosting.get('site_url', '')}")
+          print(f"ftp_host={ftp.get('host', '')}")
+          print(f"ftp_user={ftp.get('user', '')}")
+          print(f"ftp_port={ftp.get('port', 21)}")
+          print(f"ftp_remote={ftp.get('remote_path', '/htdocs').rstrip('/')}/")
+          PY
+
+      - name: Deploy to FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ steps.hosting.outputs.ftp_host }}
+          username: ${{ steps.hosting.outputs.ftp_user }}
           password: ${{ secrets.FTP_PASSWORD }}
+          port: ${{ steps.hosting.outputs.ftp_port }}
+          protocol: ftp
           local-dir: ./genWtao-app/site/public/
-          server-dir: /htdoc          server-dir: /htdoc          server
-                               un: echo "Site deployed successfully"
+          server-dir: ${{ steps.hosting.outputs.ftp_remote }}
+
+      - name: Summary
+        if: success()
+        run: |
+          echo "Site deployed successfully"
+          echo "${{ steps.hosting.outputs.site_url }}"
 
       - name: Error details
         if: failure()

@@ -1,6 +1,6 @@
 # genWtao — Personal Site Generator (Logseq + Hugo)
 
-Pipeline: Logseq → GitHub Actions → Hugo → ftp host  
+Pipeline: Logseq → GitHub Actions → Hugo → FTP host  
 Actual Hugo Theme: [PaperMod](https://github.com/adityatelange/hugo-PaperMod)
 
 ---
@@ -10,7 +10,7 @@ Actual Hugo Theme: [PaperMod](https://github.com/adityatelange/hugo-PaperMod)
 1. **Create 2 repo** on github, one for Graph, one for the app if you want to automate the pipeline with Github action. But you can do it manualy
 2. **Edit your pages** in Logseq on Desktop (or Smartphone via Dropsync)
 3. **Push Graph to GitHub** via the Logseq Git plugin
-4. After configuring secrets like *ftp host* and *Github token*, **Click "Run workflow"** on github.com → Actions → Generate and Deploy
+4. After configuring your secrets and your `site.yaml`, **Click "Run workflow"** on github.com → Actions → Generate and Deploy
 
 The build and deployment happen entirely in the cloud. Your Computer does not need to be on at step 3.
 
@@ -247,9 +247,9 @@ cd genWtao-app
 # Initialize the PaperMod theme submodule
 git submodule update --init --recursive
 
-# Create your personal config (gitignored — never committed)
-cp config/config.example.yaml config/config.yaml
-# Then edit config/config.yaml: fill in your paths, FTP user, site URL
+# Copy and adapt the personal site configuration
+cp site.example.yaml /path/to/your-logseq-graph/site.yaml
+# Then edit site.yaml in your Logseq graph: site URL, FTP host, FTP user, menus, languages
 ```
 
 Set the required secrets in GitHub → Settings → Secrets → Actions:
@@ -270,15 +270,16 @@ Set the required secrets in GitHub → Settings → Secrets → Actions:
 cd genWtao-app
 
 python3 scripts/logseq_to_hugo.py \
-  --graph  $(grep 'logseq:' config/config.yaml | awk '{print $2}') \
+  --graph  /absolute/path/to/your-logseq-graph \
   --output site/content \
   --config config/config.yaml \
+  --site   /absolute/path/to/your-logseq-graph/site.yaml \
   --clean
 
 cd site && hugo --minify
 ```
 
-> The `--graph` path is read from your `config/config.yaml` (`paths.logseq`).
+> The local test now needs both inputs explicitly: the shared engine config in `config/config.yaml` and the personal site config in your Logseq graph `site.yaml`.
 
 If the local build passes with no errors → the Actions workflow will pass.  
 If the local build fails → fix before pushing.
