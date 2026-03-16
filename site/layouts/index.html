@@ -1,0 +1,25 @@
+{{- define "main" }}
+{{/*
+  PaperMod-specific homepage override.
+
+  Why this file exists:
+  - the default PaperMod list.html treats the homepage as a listing page
+  - it renders .Content, then homeInfoParams, then a list of regular pages
+  - for this site, the homepage content comes from Logseq and should stand on its own
+
+  Result:
+  - keep the shared header/footer and language switcher
+  - render only the homepage content
+*/}}
+
+<article class="post-single home-single">
+  {{- if .Content }}
+  <div class="post-content">
+    {{- if not (.Param "disableAnchoredHeadings") }}
+    {{- partial "anchored_headings.html" .Content -}}
+    {{- else }}{{ .Content }}{{ end }}
+  </div>
+  {{- end }}
+</article>
+
+{{- end }}
