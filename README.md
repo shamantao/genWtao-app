@@ -69,10 +69,13 @@ toc::             true  → generates an interactive table of contents with H2/H
 | `home` | `content/<lang>/_index.md` | `/fr/` (language home page) |
 | `cv` | `content/<lang>/cv/_index.md` | `/fr/cv/` |
 | `post` | `content/<lang>/blog/<slug>.md` | `/fr/blog/my-article/` |
-| `curious` | `content/<lang>/curious/_index.md` | `/fr/curious/` |
+| `curious` | `content/<lang>/curious/<slug>.md` | `/fr/curious/my-resource/` |
+| `project` | `content/<lang>/project/<slug>.md` | `/fr/project/my-project/` |
 | `contact` | `content/<lang>/contact/_index.md` | `/fr/contact/` |
 
-> **To add a new type**: add a block in `sitemap.md` in your Logseq graph (see Sitemap section above).  
+Whether a type generates individual pages (`<slug>.md`) or a single page (`_index.md`) is controlled by `mode:: collection` in `sitemap.md`. See the Sitemap section below.
+
+> **To add a new type**: add a block in `sitemap.md` in your Logseq graph (see Sitemap section below).  
 > The script auto-generates the Hugo menu, section folders, and i18n labels.
 
 ---
@@ -195,20 +198,45 @@ public:: false
 
 - curious
 	- slug:: curious
+	- mode:: collection
 	- fr:: Curiosité
 	- en:: Curiosity
 	- zh-tw:: 好奇心
 
 - contact
 	- slug:: contact
+	- provider:: formspree
 	- fr:: Contact
 	- en:: Contact
 	- zh-tw:: 聯絡
+
+- blog
+	- slug:: blog
+	- mode:: collection
+	- fr:: Blog
+	- en:: Blog
+	- zh-tw:: 部落格
+
+- project
+	- slug:: project
+	- mode:: collection
+	- fr:: Projets
+	- en:: Projects
+	- zh-tw:: 專案
 ```
 
 Each top-level bullet is a **section**. Sub-bullets define:
 - `slug::` — the URL segment (e.g. `cv` → `/fr/cv/`)
+- `mode:: collection` — *(optional)* marks the section as multi-page: each Logseq page becomes a separate file (`<slug>.md`) with an auto-generated list page. Without this, the section is a single page (`_index.md`).
+- `provider::` — *(contact section only)* the form service to use (see [Contact form](#contact-form--configurable-provider) below)
 - `fr::`, `en::`, `zh-tw::` — the menu label displayed in each language
+
+**Two section modes:**
+
+| Mode | `mode::` | Generated file | Use case |
+|------|----------|----------------|----------|
+| Single page | *(omitted)* | `_index.md` | Home, CV, Contact — one page of content |
+| Collection | `collection` | `<slug>.md` per page | Blog, Curious, Projects — multiple pages with automatic list |
 
 ### Adding a new section
 
@@ -216,11 +244,21 @@ Add a block in `sitemap.md`:
 ```
 - portfolio
 	- slug:: portfolio
+	- mode:: collection
 	- fr:: Portfolio
 	- en:: Portfolio
 	- zh-tw:: 作品集
 ```
-Then create Logseq pages with `type:: portfolio`. That's it — the menu, URL, and i18n labels are handled automatically.
+Then create Logseq pages with `type:: portfolio`. That's it — the menu, URL, i18n labels, and multi-page behavior are handled automatically.
+
+For a single-page section (like a new "About" page), just omit `mode::`:
+```
+- about
+	- slug:: about
+	- fr:: À propos
+	- en:: About
+	- zh-tw:: 關於
+```
 
 ### Adding a new language
 
@@ -233,6 +271,42 @@ Add a line in every block:
 	- zh-tw:: 工作經歷
 	- pl:: Doświadczenie
 ```
+
+---
+
+## Contact form — configurable provider
+
+The contact form provider is set **from Logseq** via `sitemap.md`, on the contact section:
+
+```
+- contact
+	- slug:: contact
+	- provider:: formspree
+	- fr:: Contact
+	- en:: Contact
+```
+
+### Supported providers
+
+| Provider | `provider::` value | ID required | Notes |
+|----------|-------------------|-------------|-------|
+| [Formspree](https://formspree.io) | `formspree` | Yes | 50 submissions/month free |
+| [Web3Forms](https://web3forms.com) | `web3forms` | Yes (access key) | Unlimited free, hCaptcha built-in |
+| [FormSubmit](https://formsubmit.co) | `formsubmit` | Yes (email) | Unlimited, zero signup |
+| [Getform](https://getform.io) | `getform` | Yes | 50/month free, dashboard |
+| [Fabform](https://fabform.io) | `fabform` | Yes | GDPR-friendly, EU servers |
+| Self-hosted PHP | `php` | No | Uses `/contact.php` on your server |
+
+### Setup
+
+1. Choose a provider and create an account (or use PHP if your host supports it)
+2. Get your form ID or API key
+3. Add the secret in GitHub → Settings → Secrets → Actions as `CONTACT_FORM_ID`
+4. Set `provider:: <name>` on the contact section in `sitemap.md`
+
+The form ID is injected at build time via `HUGO_PARAMS_CONTACT_FORM_ID` — it never appears in your code.
+
+**Backward compatibility:** if `provider::` is not set but a `formspree_id` parameter exists in `site.yaml`, the template falls back to Formspree automatically.
 
 ---
 
@@ -374,7 +448,7 @@ Set the required secrets in GitHub → Settings → Secrets → Actions:
 |------|-------|
 | `GH_TOKEN` | Personal Access Token (read access to your Logseq graph repo) |
 | `FTP_PASSWORD` | Your FTP hosting password |
-| `FORMSPREE_ID` | Formspree form ID (for the contact form) |
+| `CONTACT_FORM_ID` | Form provider ID/key (Formspree, Web3Forms, etc.) |
 
 ---
 
@@ -445,7 +519,7 @@ Before clicking Run workflow, the Logseq Git plugin (Computer) must have pushed 
 - [Hugo PaperMod](https://github.com/adityatelange/hugo-PaperMod)
 - [Hugo documentation](https://gohugo.io/documentation/)
 - [GitHub Actions](https://docs.github.com/en/actions)
-- [Formspree](https://formspree.io)
+- Contact form providers: [Formspree](https://formspree.io) · [Web3Forms](https://web3forms.com) · [FormSubmit](https://formsubmit.co) · [Getform](https://getform.io) · [Fabform](https://fabform.io)
 
 ---
 

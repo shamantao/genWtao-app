@@ -1,7 +1,11 @@
 {{/*
-  contact/list.html — contact form with Formspree
+  contact/list.html — multi-provider contact form
   Multilingual labels via Hugo i18n (site/i18n/*.yaml).
-  FORMSPREE_ID injected at build time via HUGO_PARAMS_FORMSPREE_ID env var
+
+  Provider is configured in sitemap.md (provider:: xxx on the contact section).
+  Supported providers: formspree, web3forms, formsubmit, getform, fabform, php.
+
+  The form ID/key is injected at build time via HUGO_PARAMS_CONTACT_FORM_ID env var
   (GitHub Actions) or set directly in site/hugo.yaml params for local testing.
 */}}
 {{ define "main" }}
@@ -14,13 +18,53 @@
   <div class="post-content contact-page">
     {{- with .Content }}{{ . }}{{ end }}
 
-    {{- $formspree := site.Params.formspree_id }}
-    {{- if $formspree }}
+    {{- $provider := site.Params.contact_provider | default "" }}
+    {{- $formId := site.Params.contact_form_id | default "" }}
+
+    {{/* Backward compatibility: formspree_id still works */}}
+    {{- if and (not $provider) (site.Params.formspree_id) }}
+      {{- $provider = "formspree" }}
+      {{- $formId = site.Params.formspree_id }}
+    {{- end }}
+
+    {{/* Build action URL and provider-specific settings */}}
+    {{- $action := "" }}
+    {{- $emailField := "email" }}
+
+    {{- if eq $provider "formspree" }}
+      {{- $action = printf "https://formspree.io/f/%s" $formId }}
+      {{- $emailField = "_replyto" }}
+    {{- else if eq $provider "web3forms" }}
+      {{- $action = "https://api.web3forms.com/submit" }}
+    {{- else if eq $provider "formsubmit" }}
+      {{- $action = printf "https://formsubmit.co/%s" $formId }}
+    {{- else if eq $provider "getform" }}
+      {{- $action = printf "https://getform.io/f/%s" $formId }}
+    {{- else if eq $provider "fabform" }}
+      {{- $action = printf "https://fabform.io/f/%s" $formId }}
+    {{- else if eq $provider "php" }}
+      {{- $action = "/contact.php" }}
+    {{- end }}
+
+    {{- if $action }}
     <form
-      action="https://formspree.io/f/{{ $formspree }}"
+      action="{{ $action }}"
       method="POST"
       class="contact-form"
     >
+      {{/* Provider-specific hidden fields */}}
+      {{- if eq $provider "web3forms" }}
+      <input type="hidden" name="access_key" value="{{ $formId }}">
+      <input type="hidden" name="redirect" value="{{ .Permalink }}?sent=1">
+      {{- else if eq $provider "formspree" }}
+      <input type="hidden" name="_next" value="{{ .Permalink }}?sent=1">
+      {{- else if eq $provider "formsubmit" }}
+      <input type="hidden" name="_next" value="{{ .Permalink }}?sent=1">
+      <input type="hidden" name="_captcha" value="false">
+      {{- else if eq $provider "php" }}
+      <input type="hidden" name="_next" value="{{ .Permalink }}?sent=1">
+      {{- end }}
+
       <div class="form-group">
         <label for="contact-name">{{ i18n "contact_name" }}</label>
         <input
@@ -37,7 +81,7 @@
         <input
           type="email"
           id="contact-email"
-          name="_replyto"
+          name="{{ $emailField }}"
           autocomplete="email"
           required
         >
@@ -52,9 +96,6 @@
           required
         ></textarea>
       </div>
-
-      {{/* Redirect Formspree to the same page after submission */}}
-      <input type="hidden" name="_next" value="{{ .Permalink }}?sent=1">
 
       <button type="submit" class="contact-submit">
         {{ i18n "contact_submit" }}
@@ -73,7 +114,7 @@
     </script>
 
     {{- else }}
-    <p><em>Contact form not configured (FORMSPREE_ID missing).</em></p>
+    <p><em>{{ i18n "contact_not_configured" | default "Contact form not configured." }}</em></p>
     {{- end }}
   </div>
 </article>

@@ -34,12 +34,6 @@ theme_params:
     toc_open: TocOpen
     show_tags: ShowTags
 
-# Form endpoints - template with env var placeholder
-formendpoints:
-    contact_form:
-        action: "https://formspree.io/f/${FORMSPREE_ID}"
-        method: POST
-
 # Theme colors - generates site/static/css/theme-colors.css
 colors:
     light:

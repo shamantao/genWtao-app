@@ -18,7 +18,7 @@ Supported Logseq syntax:
     ^^text^^                          → <mark>text</mark>
     ../assets/img.ext                 → /assets/img.ext
     ![alt](path){:height H, :width W} → <img src="path" width="W">
-    {{video https://...}}             → Hugo youtube shortcode or <video> tag
+    {{video|embed https://...}}        → platform embed (YouTube, Odysee, Maps, Mastodon, Bluesky, PDF)
     #+BEGIN_NOTE ... #+END_NOTE       → emoji-styled blockquote
     collapsed:: / id::                → removed (Logseq internal)
     logo:: ![]()                      → key removed, image value kept
@@ -187,6 +187,10 @@ def load_sitemap(graph_dir):
                 val = sub_match.group(2).strip()
                 if key == 'slug':
                     current['slug'] = val
+                elif key == 'mode':
+                    current['mode'] = val
+                elif key == 'provider':
+                    current['provider'] = val
                 else:
                     current['labels'][key] = val
 
@@ -197,8 +201,10 @@ def load_sitemap(graph_dir):
 
 
 def sitemap_to_sections(sitemap_entries):
-    """Convert sitemap entries to a sections dict (type → Hugo folder)."""
+    """Convert sitemap entries to a sections dict (type → Hugo folder)
+    and a set of collection types (multi-page sections)."""
     sections = {}
+    collection_types = set()
     for entry in sitemap_entries:
         section = entry['section']
         slug = entry['slug']
@@ -206,7 +212,27 @@ def sitemap_to_sections(sitemap_entries):
             sections[section] = ''
         else:
             sections[section] = slug if slug else section
-    return sections
+        if entry.get('mode', '').lower() == 'collection':
+            collection_types.add(section)
+    return sections, collection_types
+
+
+def inject_contact_provider(sitemap_entries, hugo_block):
+    """Inject contact_provider from sitemap into hugo.yaml params.
+
+    Reads provider:: on the contact section in sitemap.md and writes
+    it to hugo_block['params']['contact_provider'] so the Hugo template
+    can switch form behaviour per provider.
+    """
+    if not sitemap_entries or not hugo_block:
+        return
+    for entry in sitemap_entries:
+        if entry['section'] == 'contact' and 'provider' in entry:
+            if 'params' not in hugo_block:
+                hugo_block['params'] = {}
+            hugo_block['params']['contact_provider'] = entry['provider']
+            print(f'  📧 Contact provider: {entry["provider"]}')
+            return
 
 
 def sitemap_to_menus(sitemap_entries, hugo_block):
@@ -571,13 +597,69 @@ def convert_image_with_size(m):
     return f'<img {" ".join(parts)}>'
 
 
-def convert_video_embed(m):
-    """{{video url}} → Hugo youtube shortcode or <video> tag."""
+def convert_media_embed(m):
+    """{{video|embed url}} → platform-specific HTML embed."""
     url = m.group(1).strip()
-    yt  = re.search(r'(?:youtube\.com/watch\?v=|youtu\.be/)([a-zA-Z0-9_-]+)', url)
+
+    # YouTube → Hugo native shortcode
+    yt = re.search(r'(?:youtube\.com/watch\?v=|youtu\.be/)([a-zA-Z0-9_-]+)', url)
     if yt:
         return '{{' + f'< youtube {yt.group(1)} >' + '}}'
-    return f'<video src="{url}" controls></video>'
+
+    # Odysee → iframe
+    od = re.search(r'odysee\.com/(.+)', url)
+    if od:
+        embed_url = f'https://odysee.com/$/embed/{od.group(1)}'
+        return _responsive_iframe(embed_url)
+
+    # Google Maps → iframe (share link or embed link)
+    if re.search(r'google\.\w+/maps|maps\.google\.\w+|maps\.app\.goo\.gl', url):
+        # maps share URLs work directly as iframe src with /embed
+        gm = re.search(r'google\.\w+/maps/(?:place|embed|dir|search)/([^?\s]+)', url)
+        if gm:
+            embed_url = re.sub(r'/maps/(place|dir|search)/', '/maps/embed/v1/\\1/', url.split('?')[0])
+        else:
+            embed_url = url
+        return _responsive_iframe(embed_url, padding='60%')
+
+    # Mastodon → iframe (instance.tld/@user/id format)
+    masto = re.search(r'(https?://[^/]+/@\w+/\d+)', url)
+    if masto and not re.search(r'(twitter|x|bsky|youtube|odysee)\.', url):
+        return _responsive_iframe(f'{masto.group(1)}/embed', padding='auto', fixed_height='400px')
+
+    # Bluesky → embed via bsky.app post URL
+    bsky = re.search(r'bsky\.app/profile/([^/]+)/post/([a-z0-9]+)', url)
+    if bsky:
+        return _responsive_iframe(
+            f'https://embed.bsky.app/embed/{bsky.group(1)}/app.bsky.feed.post/{bsky.group(2)}',
+            padding='auto', fixed_height='450px',
+        )
+
+    # PDF → inline viewer
+    if url.lower().endswith('.pdf') or 'pdf' in url.lower().split('?')[0].rsplit('.', 1)[-1:]:
+        return (
+            f'<iframe src="{url}" '
+            'style="width:100%;height:600px;border:1px solid #ccc;border-radius:4px;">'
+            '</iframe>'
+        )
+
+    # Fallback: HTML5 video tag
+    return f'<video src="{url}" controls style="max-width:100%;"></video>'
+
+
+def _responsive_iframe(src, padding='56.25%', fixed_height=None):
+    """Generate a responsive iframe wrapper."""
+    if fixed_height:
+        return (
+            f'<iframe src="{src}" '
+            f'style="width:100%;height:{fixed_height};border:0;border-radius:4px;" '
+            'allowfullscreen></iframe>'
+        )
+    return (
+        f'<div style="position:relative;padding-bottom:{padding};height:0;overflow:hidden;">'
+        f'<iframe src="{src}" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;" '
+        'allowfullscreen></iframe></div>'
+    )
 
 
 def extract_tags(text):
@@ -635,7 +717,7 @@ def convert_content(text, internal_keys, lang='fr', widgets=None):
 
     Processing order:
     1. Admonitions #+BEGIN_X...#+END_X (multi-line, global pass)
-    2. Video embeds {{video url}} (multi-line)
+    2. Media embeds {{video|embed url}} (multi-line)
     3. Widget placeholders {{widget name}} (multi-line)
     4. Line by line:
        a. Skip the properties block at the top
@@ -646,8 +728,8 @@ def convert_content(text, internal_keys, lang='fr', widgets=None):
     # ── Global multi-line passes ─────────────────────────────────────
     text = convert_admonitions(text)
     text = re.sub(
-        r'\{\{(?:video|youtube)\s+(https?://[^\}]+)\}\}',
-        convert_video_embed, text,
+        r'\{\{(?:video|youtube|embed)\s+(https?://[^\}]+)\}\}',
+        convert_media_embed, text,
     )
     lines    = text.splitlines()
     output   = []
@@ -769,7 +851,7 @@ def build_front_matter(props, source_file, tags=None, theme_params=None):
 # HUGO OUTPUT PATH RESOLVER
 # ──────────────────────────────────────────────
 
-def output_path(props, output_dir, sections_map):
+def output_path(props, output_dir, sections_map, collection_types=None):
     """Resolve the output path inside content/<lang>/<section>/."""
     lang    = props.get('lang', 'fr').lower().replace('_', '-')  # zh-TW → zh-tw
     type_   = props.get('type', 'page')
@@ -781,9 +863,10 @@ def output_path(props, output_dir, sections_map):
     else:
         dir_path = Path(output_dir) / lang
 
-    # Blog posts get one file per article (slug.md)
-    # Everything else is a section with _index.md
-    if type_ in ('post', 'blog'):
+    # Collection types (mode:: collection in sitemap.md) get one file per
+    # page (<slug>.md).  Everything else is a single section (_index.md).
+    _collections = collection_types or set()
+    if type_ in _collections:
         filename = f'{slug}.md'
     else:
         filename = '_index.md'
@@ -795,7 +878,7 @@ def output_path(props, output_dir, sections_map):
 # FILE PROCESSOR
 # ──────────────────────────────────────────────
 
-def process_file(src_path, output_dir, sections_map, internal_keys, theme_params=None, widgets=None):
+def process_file(src_path, output_dir, sections_map, internal_keys, theme_params=None, widgets=None, collection_types=None):
     text  = Path(src_path).read_text(encoding='utf-8')
     props = parse_logseq_properties(text)
 
@@ -808,7 +891,7 @@ def process_file(src_path, output_dir, sections_map, internal_keys, theme_params
     body         = convert_content(text, internal_keys, lang=lang, widgets=widgets)
     hugo_content = front_matter + '\n\n' + body
 
-    out = output_path(props, output_dir, sections_map)
+    out = output_path(props, output_dir, sections_map, collection_types=collection_types)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(hugo_content, encoding='utf-8')
     return str(out)
@@ -850,10 +933,14 @@ def main():
 
     # Load sitemap.md from Logseq graph (overrides sections + generates menus/i18n)
     sitemap_entries = load_sitemap(graph_dir)
+    collection_types = set()
     if sitemap_entries:
-        sections_map = sitemap_to_sections(sitemap_entries)
+        sections_map, collection_types = sitemap_to_sections(sitemap_entries)
         sitemap_to_menus(sitemap_entries, hugo_block)
+        inject_contact_provider(sitemap_entries, hugo_block)
         print(f'🗺️  Sitemap loaded: {len(sitemap_entries)} section(s) from pages/sitemap.md')
+        if collection_types:
+            print(f'  📚 Collection types (multi-page): {sorted(collection_types)}')
     else:
         print('  ℹ️  No sitemap.md found — using sections from config.yaml')
 
@@ -910,7 +997,7 @@ def main():
     skipped  = []
 
     for md_file in sorted(pages_dir.glob('*.md')):
-        result = process_file(md_file, output_dir, sections_map, internal_keys, theme_params=theme_params, widgets=widgets)
+        result = process_file(md_file, output_dir, sections_map, internal_keys, theme_params=theme_params, widgets=widgets, collection_types=collection_types)
         if result:
             exported.append(result)
             print(f"  ✅ {md_file.name} → {result}")
