@@ -1,12 +1,23 @@
-contact_name:
-  other: "Nom / Prénom"
+# Auto-updated by logseq_to_hugo.py — nav_ keys from sitemap.md
 contact_email:
-  other: "Adresse email"
-contact_message:
-  other: "Message"
-contact_submit:
-  other: "Envoyer"
-contact_success:
-  other: "Votre message a été envoyé. Merci !"
+  other: Adresse email
 contact_linkedin:
-  other: "Également disponible sur"
+  other: Également disponible sur
+contact_message:
+  other: Message
+contact_name:
+  other: Nom / Prénom
+contact_submit:
+  other: Envoyer
+contact_success:
+  other: Votre message a été envoyé. Merci !
+nav_blog:
+  other: Blog
+nav_contact:
+  other: Contact
+nav_curious:
+  other: Curiosité
+nav_cv:
+  other: Expériences
+nav_home:
+  other: Accueil

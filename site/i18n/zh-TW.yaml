@@ -1,12 +1,23 @@
-contact_name:
-  other: "姓名"
+# Auto-updated by logseq_to_hugo.py — nav_ keys from sitemap.md
 contact_email:
-  other: "電子郵件"
-contact_message:
-  other: "訊息內容"
-contact_submit:
-  other: "傳送"
-contact_success:
-  other: "您的訊息已傳送，感謝您！"
+  other: 電子郵件
 contact_linkedin:
-  other: "也可以透過以下方式聯絡"
+  other: 也可以透過以下方式聯絡
+contact_message:
+  other: 訊息內容
+contact_name:
+  other: 姓名
+contact_submit:
+  other: 傳送
+contact_success:
+  other: 您的訊息已傳送，感謝您！
+nav_blog:
+  other: 部落格
+nav_contact:
+  other: 聯絡我
+nav_curious:
+  other: 好奇心
+nav_cv:
+  other: 工作經歷
+nav_home:
+  other: 首頁

@@ -140,6 +140,246 @@ def load_site_config(site_path):
 
 
 # ──────────────────────────────────────────────
+# SITEMAP.MD PARSER
+# ──────────────────────────────────────────────
+
+def load_sitemap(graph_dir):
+    """
+    Parse pages/sitemap.md from the Logseq graph.
+
+    Expected format (Logseq outline):
+        - section_name
+            - slug:: value
+            - fr:: Label FR
+            - en:: Label EN
+
+    Returns a list of dicts:
+        [{'section': 'cv', 'slug': 'cv', 'labels': {'fr': 'Expériences', 'en': 'Experiences', ...}}, ...]
+    """
+    sitemap_path = Path(graph_dir) / 'pages' / 'sitemap.md'
+    if not sitemap_path.exists():
+        return None
+
+    text = sitemap_path.read_text(encoding='utf-8')
+    entries = []
+    current = None
+
+    for line in text.splitlines():
+        stripped = line.strip()
+        # Skip properties block at top
+        if re.match(r'^\w[\w_-]*::\s', stripped):
+            continue
+
+        # Top-level bullet: section name (e.g. "- cv")
+        top_match = re.match(r'^- (\w[\w-]*)$', stripped)
+        if top_match:
+            if current:
+                entries.append(current)
+            current = {'section': top_match.group(1), 'slug': top_match.group(1), 'labels': {}}
+            continue
+
+        # Sub-bullet with property (e.g. "  - fr:: Expériences")
+        # Use original line to detect indentation (tab or spaces before "- ")
+        if current and re.match(r'^[\t ]+- ', line):
+            sub_match = re.match(r'^(\w[\w-]*)::[ \t]*(.*)', stripped.lstrip('- '))
+            if sub_match:
+                key = sub_match.group(1).lower()
+                val = sub_match.group(2).strip()
+                if key == 'slug':
+                    current['slug'] = val
+                else:
+                    current['labels'][key] = val
+
+    if current:
+        entries.append(current)
+
+    return entries if entries else None
+
+
+def sitemap_to_sections(sitemap_entries):
+    """Convert sitemap entries to a sections dict (type → Hugo folder)."""
+    sections = {}
+    for entry in sitemap_entries:
+        section = entry['section']
+        slug = entry['slug']
+        if section == 'home':
+            sections[section] = ''
+        else:
+            sections[section] = slug if slug else section
+    return sections
+
+
+def sitemap_to_menus(sitemap_entries, hugo_block):
+    """Inject menu entries into hugo_block languages from sitemap data."""
+    if not hugo_block or 'languages' not in hugo_block:
+        return
+
+    for lang_code, lang_cfg in hugo_block['languages'].items():
+        menu_items = []
+        weight = 10
+        for entry in sitemap_entries:
+            if entry['section'] == 'home':
+                continue  # home is not a menu item, it's the site root
+            label = entry['labels'].get(lang_code, entry['labels'].get('en', entry['section'].title()))
+            slug = entry['slug'] if entry['slug'] else entry['section']
+            menu_items.append({
+                'name': label,
+                'identifier': f"{lang_code.replace('-', '')}-{entry['section']}",
+                'url': f"/{lang_code}/{slug}/",
+                'weight': weight,
+            })
+            weight += 10
+        if menu_items:
+            if 'menu' not in lang_cfg:
+                lang_cfg['menu'] = {}
+            lang_cfg['menu']['main'] = menu_items
+
+
+def generate_i18n_from_sitemap(sitemap_entries, hugo_site_dir):
+    """Generate/update i18n YAML files with nav_ keys from sitemap."""
+    import yaml as _yaml
+    i18n_dir = Path(hugo_site_dir) / 'i18n'
+    i18n_dir.mkdir(parents=True, exist_ok=True)
+
+    # Collect all languages referenced in the sitemap
+    all_langs = set()
+    for entry in sitemap_entries:
+        all_langs.update(entry['labels'].keys())
+
+    for lang in all_langs:
+        # Hugo i18n uses zh-TW (not zh-tw) for the filename
+        filename = lang if lang.islower() and '-' not in lang else lang
+        if lang == 'zh-tw':
+            filename = 'zh-TW'
+        filepath = i18n_dir / f'{filename}.yaml'
+
+        # Load existing i18n content to preserve non-nav keys
+        existing = {}
+        if filepath.exists():
+            existing = _yaml.safe_load(filepath.read_text(encoding='utf-8')) or {}
+
+        # Add/update nav_ keys from sitemap
+        for entry in sitemap_entries:
+            nav_key = f"nav_{entry['section']}"
+            label = entry['labels'].get(lang, entry['labels'].get('en', entry['section'].title()))
+            existing[nav_key] = {'other': label}
+
+        filepath.write_text(
+            '# Auto-updated by logseq_to_hugo.py — nav_ keys from sitemap.md\n'
+            + _yaml.dump(existing, allow_unicode=True, default_flow_style=False, sort_keys=True),
+            encoding='utf-8',
+        )
+    print(f'🗺️  Generated i18n nav labels from sitemap.md ({len(all_langs)} language(s))')
+
+
+# ──────────────────────────────────────────────
+# WIDGETS SYSTEM
+# ──────────────────────────────────────────────
+
+def load_widgets(graph_dir):
+    """
+    Parse pages/widgets.md from the Logseq graph.
+
+    Expected format:
+        - widget_name
+            - service:: buymeacoffee
+            - slug:: shamantao
+            - color:: #40DCA5
+
+    Returns a dict: {'widget_name': {'service': 'buymeacoffee', 'slug': 'shamantao', ...}}
+    """
+    widgets_path = Path(graph_dir) / 'pages' / 'widgets.md'
+    if not widgets_path.exists():
+        return {}
+
+    text = widgets_path.read_text(encoding='utf-8')
+    widgets = {}
+    current_name = None
+    current_props = {}
+
+    for line in text.splitlines():
+        stripped = line.strip()
+        # Skip page properties block at top
+        if re.match(r'^\w[\w_-]*::\s', stripped):
+            continue
+
+        # Top-level bullet: widget name
+        top_match = re.match(r'^- (\w[\w-]*)$', stripped)
+        if top_match:
+            if current_name:
+                widgets[current_name] = current_props
+            current_name = top_match.group(1)
+            current_props = {}
+            continue
+
+        # Sub-bullet with property
+        if current_name and re.match(r'^[\t ]+- ', line):
+            sub_match = re.match(r'^([\w][\w-]*)::[ \t]*(.*)', stripped.lstrip('- '))
+            if sub_match:
+                current_props[sub_match.group(1).lower()] = sub_match.group(2).strip()
+
+    if current_name:
+        widgets[current_name] = current_props
+
+    return widgets
+
+
+def render_widget(name, props):
+    """Render a widget dict to HTML based on its service type."""
+    service = props.get('service', 'html')
+
+    if service == 'buymeacoffee':
+        slug = props.get('slug', '')
+        return (
+            f'<script type="text/javascript"'
+            f' src="https://cdnjs.buymeacoffee.com/1.0.0/button.prod.min.js"'
+            f' data-name="bmc-button"'
+            f' data-slug="{slug}"'
+            f' data-color="{props.get("color", "#40DCA5")}"'
+            f' data-emoji="{props.get("emoji", "☕")}"'
+            f' data-font="{props.get("font", "Cookie")}"'
+            f' data-text="{props.get("text", "Buy me a coffee")}"'
+            f' data-outline-color="{props.get("outline-color", "#000000")}"'
+            f' data-font-color="{props.get("font-color", "#ffffff")}"'
+            f' data-coffee-color="{props.get("coffee-color", "#FFDD00")}"'
+            f'></script>'
+        )
+
+    if service == 'youtube':
+        vid = props.get('id', '')
+        return '{{' + f'< youtube {vid} >' + '}}'
+
+    if service == 'image':
+        src = props.get('src', '')
+        src = re.sub(r'\.\.[\/\\]assets[\/\\]', '/assets/', src)
+        alt = props.get('alt', '')
+        width = props.get('width', '')
+        parts = [f'src="{src}"']
+        if alt:   parts.append(f'alt="{alt}"')
+        if width: parts.append(f'width="{width}"')
+        return f'<img {" ".join(parts)}>'
+
+    if service == 'html':
+        return props.get('html', f'<!-- widget "{name}": no html property -->')
+
+    return f'<!-- unknown widget service "{service}" for "{name}" -->'
+
+
+def apply_widgets(text, widgets):
+    """Replace all {{widget name}} placeholders in text with rendered HTML."""
+    if not widgets:
+        return text
+
+    def replace_widget(m):
+        name = m.group(1).strip()
+        if name in widgets:
+            return render_widget(name, widgets[name])
+        return f'<!-- widget "{name}" not found in widgets.md -->'
+
+    return re.sub(r'\{\{widget\s+(\w[\w-]*)\s*\}\}', replace_widget, text)
+
+
+# ──────────────────────────────────────────────
 # THEME COLOR CSS GENERATOR
 # ──────────────────────────────────────────────
 
@@ -389,14 +629,15 @@ def parse_logseq_properties(text):
 # LOGSEQ CONTENT → HUGO MARKDOWN CONVERTER
 # ──────────────────────────────────────────────
 
-def convert_content(text, internal_keys, lang='fr'):
+def convert_content(text, internal_keys, lang='fr', widgets=None):
     """
     Converts a Logseq page body to Hugo-compatible Markdown/HTML.
 
     Processing order:
     1. Admonitions #+BEGIN_X...#+END_X (multi-line, global pass)
     2. Video embeds {{video url}} (multi-line)
-    3. Line by line:
+    3. Widget placeholders {{widget name}} (multi-line)
+    4. Line by line:
        a. Skip the properties block at the top
        b. Remove internal metadata (collapsed::, id::)
        c. Logseq bullets → Markdown; inline properties → value or drop
@@ -408,7 +649,6 @@ def convert_content(text, internal_keys, lang='fr'):
         r'\{\{(?:video|youtube)\s+(https?://[^\}]+)\}\}',
         convert_video_embed, text,
     )
-
     lines    = text.splitlines()
     output   = []
     in_props = True
@@ -480,7 +720,12 @@ def convert_content(text, internal_keys, lang='fr'):
             blank_count = 0
             cleaned.append(line)
 
-    return '\n'.join(cleaned).strip()
+    result = '\n'.join(cleaned).strip()
+    # Apply widgets AFTER all inline conversions so that HTML inside
+    # widgets (e.g. hex colours like #40DCA5) is not mangled by the
+    # Logseq #tag → link conversion.
+    result = apply_widgets(result, widgets)
+    return result
 
 
 # ──────────────────────────────────────────────
@@ -550,7 +795,7 @@ def output_path(props, output_dir, sections_map):
 # FILE PROCESSOR
 # ──────────────────────────────────────────────
 
-def process_file(src_path, output_dir, sections_map, internal_keys, theme_params=None):
+def process_file(src_path, output_dir, sections_map, internal_keys, theme_params=None, widgets=None):
     text  = Path(src_path).read_text(encoding='utf-8')
     props = parse_logseq_properties(text)
 
@@ -560,7 +805,7 @@ def process_file(src_path, output_dir, sections_map, internal_keys, theme_params
     lang         = props.get('lang', 'fr').lower()
     tags         = extract_tags(text)
     front_matter = build_front_matter(props, src_path, tags=tags or None, theme_params=theme_params)
-    body         = convert_content(text, internal_keys, lang=lang)
+    body         = convert_content(text, internal_keys, lang=lang, widgets=widgets)
     hugo_content = front_matter + '\n\n' + body
 
     out = output_path(props, output_dir, sections_map)
@@ -603,6 +848,22 @@ def main():
     hugo_block = site_cfg['hugo']
     hosting    = site_cfg['hosting']
 
+    # Load sitemap.md from Logseq graph (overrides sections + generates menus/i18n)
+    sitemap_entries = load_sitemap(graph_dir)
+    if sitemap_entries:
+        sections_map = sitemap_to_sections(sitemap_entries)
+        sitemap_to_menus(sitemap_entries, hugo_block)
+        print(f'🗺️  Sitemap loaded: {len(sitemap_entries)} section(s) from pages/sitemap.md')
+    else:
+        print('  ℹ️  No sitemap.md found — using sections from config.yaml')
+
+    # Load widgets.md from Logseq graph
+    widgets = load_widgets(graph_dir)
+    if widgets:
+        print(f'🧩 Widgets loaded: {list(widgets.keys())} from pages/widgets.md')
+    else:
+        print('  ℹ️  No widgets.md found — {{widget ...}} placeholders will not be replaced')
+
     print(f"  ℹ️  Sections: {list(sections_map.keys())}")
     print(f"  ℹ️  Ignored internal keys: {sorted(internal_keys)}")
     print(f"  ℹ️  Theme params: {theme_params}")
@@ -641,11 +902,15 @@ def main():
     # Generate data/languages.yaml from site.yaml languages:
     generate_languages_data(languages, output_dir.parent, config_was_loaded=site_was_loaded)
 
+    # Generate i18n nav labels from sitemap.md
+    if sitemap_entries:
+        generate_i18n_from_sitemap(sitemap_entries, output_dir.parent)
+
     exported = []
     skipped  = []
 
     for md_file in sorted(pages_dir.glob('*.md')):
-        result = process_file(md_file, output_dir, sections_map, internal_keys, theme_params=theme_params)
+        result = process_file(md_file, output_dir, sections_map, internal_keys, theme_params=theme_params, widgets=widgets)
         if result:
             exported.append(result)
             print(f"  ✅ {md_file.name} → {result}")
