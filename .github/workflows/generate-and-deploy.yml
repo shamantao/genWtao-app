@@ -6,6 +6,8 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
     steps:
       - name: Checkout genWtao-app
@@ -84,7 +86,7 @@ jobs:
           PY
 
       - name: Deploy to FTP
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.6
         with:
           server: ${{ steps.hosting.outputs.ftp_host }}
           username: ${{ steps.hosting.outputs.ftp_user }}
@@ -93,6 +95,7 @@ jobs:
           protocol: ftp
           local-dir: ./genWtao-app/site/public/
           server-dir: ${{ steps.hosting.outputs.ftp_remote }}
+          log-level: verbose
 
       - name: Summary
         if: success()
