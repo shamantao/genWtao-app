@@ -1,242 +1,177 @@
-# genWtao — Personal Site Generator (Logseq + Hugo)
+# genWtao — Build your website from Logseq
 
-Pipeline: Logseq → GitHub Actions → Hugo → FTP host  
-Actual Hugo Theme: [PaperMod](https://github.com/adityatelange/hugo-PaperMod)
+Write your content in **Logseq**, click a button, and your website is online.
 
----
-
-## How it works — 3 steps
-
-1. **Create 2 repo** on github, one for Graph, one for the app if you want to automate the pipeline with Github action. But you can do it manualy
-2. **Edit your pages** in Logseq on Desktop (or Smartphone via Dropsync)
-3. **Push Graph to GitHub** via the Logseq Git plugin
-4. After configuring your secrets and your `site.yaml`, **Click "Run workflow"** on github.com → Actions → Generate and Deploy
-
-The build and deployment happen entirely in the cloud. Your Computer does not need to be on at step 3.
+Theme: [PaperMod](https://github.com/adityatelange/hugo-PaperMod) · License: [MIT](LICENSE)
 
 ---
 
-## Logseq conventions — complete reference
+## Table of contents
 
-### Required page properties
-
-Every Logseq page intended for the site must start with a properties block:
-
-```
-title::      (displayed as the page title on the site)
-lang::       (fr | en | zh-TW)
-type::       (home | cv | post | curious | contact)
-slug::       (URL-safe, no accents or spaces, e.g. my-article)
-public::     true
-date::       2026-02-24
-```
-
-**All properties are required** for `post` pages (blog articles).  
-All type are defined in config/config.yaml
-For type `cv`, `home`, `curious`, `contact`: `date::` can be omitted (today's date is used automatically).
+1. [How it works](#how-it-works)
+2. [Writing content](#writing-content) — the 3 properties you need
+3. [The 4 page types](#the-4-page-types) — page, article, collection, form
+4. [Site structure](#site-structure) — sitemap.md, menus, sections
+5. [Languages & translation](#languages--translation) — multilingual, language switcher
+6. [Contact form](#contact-form) — providers, setup
+7. [Widgets](#widgets) — embed buttons, videos, HTML
+8. [Publishing](#publishing) — push, trigger, deploy
+9. [Initial setup](#initial-setup)
+10. [Troubleshooting](#troubleshooting)
+11. [Advanced — project layout & theme portability](#advanced--project-layout--theme-portability)
 
 ---
+
+## How it works
+
+1. **Write** your pages in Logseq (on computer or phone)
+2. **Sync** your Logseq graph to GitHub (via the Logseq Git plugin on your computer)
+3. **Click "Run workflow"** on github.com → Actions tab (from any browser, any device)
+4. **Done** — your site is live in 2–3 minutes
+
+Everything runs in the cloud. Your computer doesn't need to be on for step 3.
+
+---
+
+## Writing content
+
+Every published page needs a small **properties block** at the top — 3 lines.
+
+### The 3 properties
+
+| Property | What it does | Example |
+|---|---|---|
+| `type::` | What kind of page (behaviour) | `type:: page` |
+| `menu::` | Which section of the site | `menu:: cv` |
+| `lang::` | The language of this page | `lang:: fr` |
+
+**Everything else is auto-deduced:**
+
+| What | How it's deduced | Override with |
+|---|---|---|
+| Title | From the Logseq filename | `title::` |
+| Slug (URL) | From the title, slugified | `slug::` |
+| Translation link | From `menu::` (pages) or `slug::` (articles) | `translationKey::` |
+| Date | Today's date | `date::` |
 
 ### Optional properties
 
-```
-description::     (short text for SEO meta tags)
-menu_order::      (integer, e.g. 1 — controls listing order)
-translationKey::  (shared key across languages — the language switcher links equivalent pages)
-toc::             true  → generates an interactive table of contents with H2/H3 anchors
-```
-
-> **`toc:: true`**: displays a sticky sidebar TOC to the left of the content (via CSS Grid).  
-> Hugo generates anchors automatically from heading text (`## Contact` → `#-contact`).  
-> Nothing to write in Logseq — just add `toc:: true` to the page properties.
-
----
-
-### `lang::` values
-
-| Value | Language | Generated Hugo folder |
-|-------|----------|-----------------------|
-| `fr` | French | `content/fr/` |
-| `en` | English | `content/en/` |
-| `zh-TW` | Traditional Chinese | `content/zh-tw/` |
-
----
-
-### `type::` values and generated pages
-
-| `type::` | Output | Resulting URL |
-|----------|--------|---------------|
-| `home` | `content/<lang>/_index.md` | `/fr/` (language home page) |
-| `cv` | `content/<lang>/cv/_index.md` | `/fr/cv/` |
-| `post` | `content/<lang>/blog/<slug>.md` | `/fr/blog/my-article/` |
-| `curious` | `content/<lang>/curious/<slug>.md` | `/fr/curious/my-resource/` |
-| `project` | `content/<lang>/project/<slug>.md` | `/fr/project/my-project/` |
-| `contact` | `content/<lang>/contact/_index.md` | `/fr/contact/` |
-
-Whether a type generates individual pages (`<slug>.md`) or a single page (`_index.md`) is controlled by `mode:: collection` in `sitemap.md`. See the Sitemap section below.
-
-> **To add a new type**: add a block in `sitemap.md` in your Logseq graph (see Sitemap section below).  
-> The script auto-generates the Hugo menu, section folders, and i18n labels.
-
----
-
-### Role of `date::`
-
-- For `post` pages: controls display order (newest first) and the article header.
-- For other types: used in Hugo metadata, rarely visible to visitors.
-- Required format: `YYYY-MM-DD` (e.g. `2026-02-24`).
-- If missing: today's generation date is used automatically.
-
----
-
-### Why `title::` and filename are independent
-
-Logseq uses the **filename** as its internal identifier (for `[[links]]`).  
-The `title::` property is the **displayed title** (on the site and in Logseq).  
-The script reads `title::`, not the filename — renaming `title::` does not break anything.
-
-⚠️ If Logseq auto-renames the file when you change `title::`, existing `[[links]]` pointing to the old name may break inside Logseq. *This does not affect the site* (the script ignores filenames).
-
----
-
-### `slug::` rules
-
-- Used as the page URL.
-- Lowercase, hyphens only, no accents, no spaces.
-- Must be **unique per language and type**.
-- For `post` pages: also used as the generated filename (`<slug>.md`).
-
----
-
-### Page examples
-
-**French home page** (`Accueil.md`):
-```
-title::       Accueil
-lang::        fr
-type::        home
-slug::        accueil
-public::      true
-```
-
-**French CV** (`Mon CV.md`):
-```
-title::       Mon CV
-lang::        fr
-type::        cv
-slug::        cv
-public::      true
-description:: Software engineer, 10 years of experience.
-```
-
-**Blog article** (`Article IA 2026.md`):
-```
-title::       AI in 2026
-lang::        fr
-type::        post
-slug::        ai-2026
-public::      true
-date::        2026-02-24
-description:: My thoughts on AI in 2026.
-```
-
-**Curious page** (`Curious FR.md`):
-```
-title::       Curiosités
-lang::        fr
-type::        curious
-slug::        curious
-public::      true
-```
-
----
-
-### Minimum pages per language
-
-For each language (fr / en / zh-TW), create at least:
-
-| Logseq page | `type::` | `slug::` |
+| Property | When to use | Example |
 |---|---|---|
-| `Accueil.md` / `Home.md` / `首頁.md` | `home` | `accueil` / `home` / `home` |
-| `Mon CV.md` / `My Resume.md` / `我的履歷.md` | `cv` | `cv` |
+| `title::` | When the filename isn't a good title | `title:: My Resume` |
+| `slug::` | When you want a specific URL | `slug:: cv` |
+| `date::` | **Required for articles** | `date:: 2026-03-28` |
+| `description::` | SEO summary | `description:: 10 years of experience` |
+| `toc::` | Show table of contents | `toc:: true` |
 
-Blog, curious, and contact sections are optional to start.
+### Examples
+
+**A French CV page:**
+```
+type:: page
+menu:: cv
+lang:: fr
+toc:: true
+```
+That's it. Title = filename, slug = auto, translationKey = `cv` (from menu).
+
+**A blog article:**
+```
+type:: article
+menu:: blog
+lang:: fr
+slug:: n8n-discovery
+date:: 2026-03-28
+description:: First steps with n8n and Docker
+```
+
+**The home page:**
+```
+type:: page
+menu:: home
+lang:: en
+```
+
+### Good to know
+
+- **No `public:: true` needed** — a page is published when it has a `type::`. No `type::` = not published.
+- **The filename is the title** by default. You can override it with `title::` if needed.
+- **`slug::`** becomes the URL. Use only lowercase letters, numbers, and hyphens.
+- **`date::`** is required for articles (controls the order). For other pages it's filled automatically.
 
 ---
 
-## Adding a new section type
+## The 4 page types
 
-The site structure (sections, menus, translated labels) is managed from a single Logseq file: `pages/sitemap.md`. See the Sitemap section below.
+`type::` defines the **behaviour** of a page, not where it goes (that's `menu::`).
+
+| `type::` | Behaviour | Output file | Example |
+|---|---|---|---|
+| `page` | Single page per section/language | `_index.md` | Home, CV, Project |
+| `article` | Individual post in a collection | `<slug>.md` | Blog post, resource |
+| `collection` | Section listing page (shows articles) | `_index.md` | Blog index, Curiosity index |
+| `form` | Page with a submission form | `_index.md` | Contact |
+
+**Typical setup for a blog:**
+- 1 page `type:: collection` + `menu:: blog` per language → the listing page
+- N pages `type:: article` + `menu:: blog` → individual posts
 
 ---
 
-## Sitemap — site structure from Logseq
+## Site structure
 
-Instead of editing Hugo config files manually, the entire site structure is defined in **one Logseq file**: `pages/sitemap.md`.
+The layout of your site — sections, menus, labels — is defined in a single Logseq file: `pages/sitemap.md`. This file is not published.
 
-The script reads this file and automatically generates:
-- Hugo section folders
-- Navigation menus (per language)
-- i18n labels for menu items
-
-### Format
+### How `sitemap.md` works
 
 ```
 public:: false
 
 - home
-	- slug:: /
+	- slug::
 	- fr:: Accueil
 	- en:: Home
 	- zh-tw:: 首頁
-
 - cv
 	- slug:: cv
 	- fr:: Expériences
 	- en:: Experiences
 	- zh-tw:: 工作經歷
-
-- curious
-	- slug:: curious
-	- mode:: collection
-	- fr:: Curiosité
-	- en:: Curiosity
-	- zh-tw:: 好奇心
-
+- project
+	- slug:: project
+	- fr:: Projets
+	- en:: Projects
+	- zh-tw:: 專案
 - contact
 	- slug:: contact
 	- provider:: formspree
+	- form_id:: your_form_id
 	- fr:: Contact
 	- en:: Contact
-	- zh-tw:: 聯絡
-
+	- zh-tw:: 聯絡我
 - blog
 	- slug:: blog
 	- mode:: collection
 	- fr:: Blog
 	- en:: Blog
 	- zh-tw:: 部落格
-
-- project
-	- slug:: project
+- curious
+	- slug:: curious
 	- mode:: collection
-	- fr:: Projets
-	- en:: Projects
-	- zh-tw:: 專案
+	- fr:: Curiosité
+	- en:: Curiosity
+	- zh-tw:: 好奇心
 ```
 
-Each top-level bullet is a **section**. Sub-bullets define:
-- `slug::` — the URL segment (e.g. `cv` → `/fr/cv/`)
-- `mode:: collection` — *(optional)* marks the section as multi-page: each Logseq page becomes a separate file (`<slug>.md`) with an auto-generated list page. Without this, the section is a single page (`_index.md`).
-- `provider::` — *(contact section only)* the form service to use (see [Contact form](#contact-form--configurable-provider) below)
-- `fr::`, `en::`, `zh-tw::` — the menu label displayed in each language
+Each bullet is a **section**. Under each:
+- `slug::` — the URL path (e.g. `cv` → your-site.com/fr/cv/)
+- `mode:: collection` — this section lists multiple articles
+- `provider::` / `form_id::` — contact form settings (see [Contact form](#contact-form))
+- `fr::`, `en::`, `zh-tw::` — menu label for each language
 
-**Two section modes:**
+### Menu order
 
-| Mode | `mode::` | Generated file | Use case |
-|------|----------|----------------|----------|
-| Single page | *(omitted)* | `_index.md` | Home, CV, Contact — one page of content |
-| Collection | `collection` | `<slug>.md` per page | Blog, Curious, Projects — multiple pages with automatic list |
+**The order in sitemap.md = the order in the menu.** To reorder, just move the blocks. `home` is always excluded from the menu (it's the site root).
 
 ### Adding a new section
 
@@ -249,74 +184,93 @@ Add a block in `sitemap.md`:
 	- en:: Portfolio
 	- zh-tw:: 作品集
 ```
-Then create Logseq pages with `type:: portfolio`. That's it — the menu, URL, i18n labels, and multi-page behavior are handled automatically.
+Then create pages with `menu:: portfolio`. The menu, URLs, and labels are generated automatically.
 
-For a single-page section (like a new "About" page), just omit `mode::`:
-```
-- about
-	- slug:: about
-	- fr:: À propos
-	- en:: About
-	- zh-tw:: 關於
-```
+---
+
+## Languages & translation
+
+### Supported languages
+
+| `lang::` value | Site URL | Switcher |
+|---|---|---|
+| `fr` | `/fr/...` | 🇫🇷 |
+| `en` | `/en/...` | 🇬🇧 |
+| `zh-TW` | `/zh-tw/...` | 🇹🇼 |
+
+### How the language switcher works
+
+The system automatically links pages that are translations of each other using `translationKey`. You don't need to set it manually — it's auto-deduced:
+
+| Page type | translationKey = | Why |
+|---|---|---|
+| `page`, `collection`, `form` | `menu::` value | All CVs share `cv`, all contacts share `contact` |
+| `article` | `slug::` value | Articles with the same slug across languages are linked |
+
+**Override:** if you need a custom link, set `translationKey::` explicitly on the page.
 
 ### Adding a new language
 
-Add a line in every block:
+Add a label for each section in `sitemap.md`:
 ```
 - cv
 	- slug:: cv
 	- fr:: Expériences
 	- en:: Experiences
 	- zh-tw:: 工作經歷
-	- pl:: Doświadczenie
+	- pl:: Doświadczenie     ← new language
 ```
 
 ---
 
-## Contact form — configurable provider
+## Contact form
 
-The contact form provider is set **from Logseq** via `sitemap.md`, on the contact section:
+The contact form is **provider-agnostic**. You choose a service, put its ID in `sitemap.md`, and the template handles the rest.
+
+### Configuration in `sitemap.md`
 
 ```
 - contact
 	- slug:: contact
 	- provider:: formspree
+	- form_id:: xreaoqvg
 	- fr:: Contact
 	- en:: Contact
 ```
 
+Two fields:
+- **`provider::`** — which service handles submissions
+- **`form_id::`** — your form/API key from that service
+
 ### Supported providers
 
-| Provider | `provider::` value | ID required | Notes |
-|----------|-------------------|-------------|-------|
-| [Formspree](https://formspree.io) | `formspree` | Yes | 50 submissions/month free |
-| [Web3Forms](https://web3forms.com) | `web3forms` | Yes (access key) | Unlimited free, hCaptcha built-in |
-| [FormSubmit](https://formsubmit.co) | `formsubmit` | Yes (email) | Unlimited, zero signup |
-| [Getform](https://getform.io) | `getform` | Yes | 50/month free, dashboard |
-| [Fabform](https://fabform.io) | `fabform` | Yes | GDPR-friendly, EU servers |
-| Self-hosted PHP | `php` | No | Uses `/contact.php` on your server |
+| Provider | `provider::` | Free tier | `form_id::` = |
+|---|---|---|---|
+| [Formspree](https://formspree.io) | `formspree` | 50/month | Form hashid (e.g. `xreaoqvg`) |
+| [Web3Forms](https://web3forms.com) | `web3forms` | 250/month | Access key |
+| [FormSubmit](https://formsubmit.co) | `formsubmit` | Unlimited, no signup | Email hash |
+| [Getform](https://getform.io) | `getform` | 50/month | Endpoint ID |
+| [Fabform](https://fabform.io) | `fabform` | 1000/month, EU servers | Form ID |
+| Self-hosted PHP | `php` | Free (your server) | *(not needed)* |
 
-### Setup
+### Switching providers
 
-1. Choose a provider and create an account (or use PHP if your host supports it)
-2. Get your form ID or API key
-3. Add the secret in GitHub → Settings → Secrets → Actions as `CONTACT_FORM_ID`
-4. Set `provider:: <name>` on the contact section in `sitemap.md`
-
-The form ID is injected at build time via `HUGO_PARAMS_CONTACT_FORM_ID` — it never appears in your code.
-
-**Backward compatibility:** if `provider::` is not set but a `formspree_id` parameter exists in `site.yaml`, the template falls back to Formspree automatically.
+1. Create an account on the new provider
+2. Get your form ID / access key
+3. Update 2 lines in sitemap.md:
+```
+	- provider:: web3forms
+	- form_id:: your_new_access_key
+```
+4. Regenerate. Done. No code changes.
 
 ---
 
-## Widgets — reusable embeds from Logseq
+## Widgets
 
-Widgets let you embed external elements (buttons, videos, custom HTML) into any page **without touching code**. Everything is managed from Logseq.
+Widgets let you embed external elements (buttons, videos, custom HTML) into any page, without touching code.
 
-### Defining widgets in `pages/widgets.md`
-
-Each widget is a top-level bullet with parameters as sub-bullets:
+### Define widgets in `pages/widgets.md`
 
 ```
 public:: false
@@ -326,105 +280,60 @@ public:: false
 	- color:: #40DCA5
 	- emoji:: 🍵
 	- text:: Buy me a tea
-	- font:: Comic
-	- outline-color:: #000000
-	- font-color:: #ffffff
-	- coffee-color:: #FFDD00
 ```
 
-### Using a widget in a page
+### Use a widget in any page
 
-In any Logseq page, write:
-
+Write this anywhere in your Logseq page:
 ```
 {{widget buymeacoffee}}
 ```
 
-The script replaces this placeholder with the rendered HTML during conversion.
+The script replaces it with the actual HTML when building the site.
 
-### Supported widget types
+### Available widget types
 
-| Type | Required params | Description |
-|------|----------------|-------------|
-| `buymeacoffee` | `slug` | Buy Me a Coffee button (colors + text customizable) |
-| `youtube` | `id` | Responsive embedded YouTube video |
-| `image` | `src` | Image with optional `alt` and `caption` |
-| `html` | `code` | Raw HTML (for any other embed) |
-
-### Adding a new widget
-
-Add a block in `widgets.md`:
-```
-- my-widget
-	- type:: html
-	- code:: <div class="custom">My content</div>
-```
-Then use `{{widget my-widget}}` anywhere in your pages.
-
-> Widget HTML is injected **after** all Logseq inline conversions, so hex color codes like `#40DCA5` inside widget markup are never mangled.
+| Type | What you need | What it does |
+|------|---------------|--------------|
+| `buymeacoffee` | `slug` (your username) | A "Buy Me a Coffee" button |
+| `youtube` | `id` (video ID) | An embedded YouTube video |
+| `image` | `src` (image path) | An image with optional caption |
+| `html` | `code` (HTML code) | Any custom HTML |
 
 ---
 
-## Project structure
+## Publishing
 
-```
-genWtao-app/
-├── README.md
-├── config/
-│   └── config.yaml           ← section types, FTP config, theme params
-├── scripts/
-│   ├── logseq_to_hugo.py     ← Logseq → Hugo converter (sitemap, widgets, i18n)
-│   └── publish.sh            ← local script (Computer offline use)
-├── site/
-│   ├── hugo.yaml             ← Hugo config + multilingual menus (auto-generated from sitemap.md)
-│   ├── themes/
-│   │   └── PaperMod/         ← theme (git submodule)
-│   ├── content/              ← generated by logseq_to_hugo.py — do not edit
-│   │   ├── fr/
-│   │   ├── en/
-│   │   └── zh-tw/
-│   ├── layouts/
-│   │   ├── cv/
-│   │   │   └── list.html     ← ⚠ PaperMod-specific override (TOC for CV pages)
-│   │   └── partials/
-│   │       ├── header.html   ← ⚠ PaperMod-specific override (language switcher)
-│   │       └── extend_head.html  ← injects custom.css (theme-agnostic)
-│   └── static/
-│       ├── assets/           ← copied from Logseq assets/ by the script
-│       └── css/
-│           └── custom.css    ← functional CSS (sidebar TOC — theme-agnostic)
-└── .github/workflows/
-    └── generate-and-deploy.yml
+### Step 1 — Sync Logseq to GitHub
 
-# In the Logseq graph (separate repo):
-your-logseq-graph/
-├── site.yaml                 ← personal site config (URL, FTP, theme colors)
-├── pages/
-│   ├── sitemap.md            ← site structure: sections, menus, i18n labels
-│   ├── widgets.md            ← reusable embed definitions (BMC, YouTube, etc.)
-│   ├── Home-fr.md            ← content pages with properties (public:: true)
-│   └── ...
-└── assets/                   ← images referenced in pages (copied to static/)
+On your computer, the **Logseq Git plugin** automatically sends your pages to GitHub. On phone, sync to your computer via Autosync or similar.
+
+### Step 2 — Trigger the build
+
+From **any browser** (computer or phone):
+1. Go to your repository on github.com → **Actions** tab
+2. Click **Generate and Deploy**
+3. Click **Run workflow**
+4. Wait 2–3 minutes
+
+### Step 3 — Your site is live
+
+The system converts your Logseq pages, builds the site, and uploads it to your hosting. Done.
+
+### Testing locally
+
+```bash
+cd genWtao-app
+
+python3 scripts/logseq_to_hugo.py \
+  --config config/config.yaml \
+  --site   /path/to/your-logseq-graph/site.yaml \
+  --clean
+
+cd site && hugo server
 ```
 
----
-
-## Theme portability
-
-The project is designed to make theme migration straightforward.
-
-**What survives a theme change (Hugo standard):**
-- All generated content in `site/content/` — 100% Markdown + standard front matter
-- Multilingual structure (`contentDir` per language)
-- Taxonomies (tags, categories)
-- `logseq_to_hugo.py` — front matter param names are mapped via `theme_params:` in `config.yaml`
-- `site/static/css/custom.css` — may need selector updates if the new theme uses different class names
-
-**What needs rewriting on theme change:**
-- Files marked `⚠ PaperMod-specific` in `site/layouts/` (2 files)
-- `theme_params:` values in `config/config.yaml` (3 lines)
-
-See `config/config.yaml` → `theme_params:` section for the mapping.
+`--graph` and `--output` are optional — they default to `graph_path` in config.yaml and `site/content`.
 
 ---
 
@@ -433,84 +342,83 @@ See `config/config.yaml` → `theme_params:` section for the mapping.
 ```bash
 git clone https://github.com/shamantao/genWtao-app.git
 cd genWtao-app
-
-# Initialize the PaperMod theme submodule
 git submodule update --init --recursive
 
-# Copy and adapt the personal site configuration
 cp site.example.yaml /path/to/your-logseq-graph/site.yaml
-# Then edit site.yaml in your Logseq graph: site URL, FTP host, FTP user, menus, languages
+# Edit site.yaml: your site URL, FTP host, FTP user, languages
+# Edit config/config.yaml: set graph_path to your Logseq graph folder
 ```
 
-Set the required secrets in GitHub → Settings → Secrets → Actions:
+Then add these secrets on GitHub (Settings → Secrets → Actions):
 
-| Name | Value |
-|------|-------|
-| `GH_TOKEN` | Personal Access Token (read access to your Logseq graph repo) |
-| `FTP_PASSWORD` | Your FTP hosting password |
-| `CONTACT_FORM_ID` | Form provider ID/key (Formspree, Web3Forms, etc.) |
-
----
-
-## Local testing before pushing
-
-**Rule: always test locally before triggering GitHub Actions.**
-
-```bash
-cd genWtao-app
-
-python3 scripts/logseq_to_hugo.py \
-  --graph  /absolute/path/to/your-logseq-graph \
-  --output site/content \
-  --config config/config.yaml \
-  --site   /absolute/path/to/your-logseq-graph/site.yaml \
-  --clean
-
-cd site && hugo --minify
-```
-
-> The local test now needs both inputs explicitly: the shared engine config in `config/config.yaml` and the personal site config in your Logseq graph `site.yaml`.
-
-If the local build passes with no errors → the Actions workflow will pass.  
-If the local build fails → fix before pushing.
-
----
-
-## Running the pipeline
-
-### From any browser (Computer or Android)
-
-1. Go to `https://github.com/<your-username>/genWtao-app/actions`
-2. Click **Generate and Deploy**
-3. Click **Run workflow** (grey button)
-4. Wait 2–3 min → site live at your hosting URL
-
-### Prerequisite: Logseq graph up to date on GitHub
-
-Before clicking Run workflow, the Logseq Git plugin (Computer) must have pushed the latest pages to your private Logseq graph repo.
+| Name | What it is |
+|------|------------|
+| `GH_TOKEN` | A GitHub access token (to read your Logseq graph) |
+| `FTP_PASSWORD` | Your hosting FTP password |
 
 ---
 
 ## Troubleshooting
 
-### Site does not update after a push
-- Check that the page has `public:: true`
-- Check that the push went through to `main`
-- Re-run the workflow from the Actions tab
+### My page doesn't appear on the site
+- Check that the page has `type::` defined (no type = not published)
+- Check that `menu::` matches a section in sitemap.md
 
-### FTP upload fails
+### The language flags are missing
+- For pages/collections/forms: all translations of the same section automatically share a translationKey (= `menu::` value). Just make sure each language version has the same `menu::`.
+- For articles: all translations should share the same `slug::`.
+- Override: set `translationKey::` explicitly if auto-deduction doesn't work.
+
+### The contact form redirects to an error page
+- Check that `form_id::` is set in sitemap.md under the contact section
+- Check that the form ID matches your account on the provider
+
+### Blog articles don't show in the listing
+- The section needs a `type:: collection` page (the index) + individual `type:: article` pages
+- Make sure the collection page and the articles share the same `menu::` value
+
+### FTP upload failed
 - Check the FTP password in GitHub Secrets
-- Verify that `remote_path` is correct in `config.yaml`
-- Test the FTP connection manually:
-  ```bash
-  ftp YOUR_FTP_HOST
-  # user: YOUR_FTP_USER
-  # password: (from GitHub Secrets)
-  ```
+- Verify `remote_path` in config.yaml
 
-### Page renders incorrectly
-- Check the generated file in `site/content/<lang>/<type>/`
-- Run `hugo server` locally to inspect
+---
+
+## Advanced — project layout & theme portability
+
+### Project structure
+
+```
+genWtao-app/                              ← this repository
+├── config/
+│   └── config.yaml                       ← engine config (graph path, types, theme, colors)
+├── scripts/
+│   ├── logseq_to_hugo.py                 ← converts Logseq pages to Hugo format
+│   ├── preview.sh                        ← local preview script
+│   └── publish.sh                        ← local build script (offline use)
+├── site/
+│   ├── hugo.yaml                         ← auto-generated site configuration
+│   ├── themes/PaperMod/                  ← visual theme
+│   ├── content/                          ← auto-generated pages (do not edit)
+│   ├── layouts/                          ← page templates
+│   └── static/css/custom.css             ← custom styles
+└── .github/workflows/
+    └── generate-and-deploy.yml           ← the automated build pipeline
+
+your-logseq-graph/                        ← separate repository (private)
+├── site.yaml                             ← your personal site settings
+├── pages/
+│   ├── sitemap.md                        ← site structure, menus, contact provider
+│   └── widgets.md                        ← widget definitions
+└── assets/                               ← images used in your pages
+```
+
+### Theme portability
+
+The project separates your content from the visual theme. If you want to switch themes later:
+
+**What stays the same:** all your content, the multilingual setup, the conversion script.
+
+**What needs updating:** 2 template files in `site/layouts/` and 3 lines in `config/config.yaml` (theme_params mapping).
 
 ---
 

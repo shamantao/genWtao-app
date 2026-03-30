@@ -1,16 +1,26 @@
-version: 0.4.2
+version: 0.5.0
 
-# Logseq type -> Hugo section mapping
-# To add a new type: add a line here.
-# The value is the subfolder name inside content/<lang>/
-# An empty value "" means the page goes to the language root (_index.md)
-sections:
+# Chemin du graph Logseq (écrit par install.sh, ou configurer manuellement)
+graph_path: /Users/phil/Autosync/genWtao
+
+# Types valides (les 4 comportements possibles dans type::)
+valid_types:
+  - page
+  - article
+  - collection
+  - form
+
+# Rétrocompatibilité v0.4 : anciens type:: → menu:: + type::
+# Si une page utilise l'ancien modèle (type:: cv au lieu de type:: page + menu:: cv)
+# ce mapping traduit l'ancien type en section Hugo
+legacy_sections:
     home: ""
     cv: cv
     post: blog
     blog: blog
     curious: curious
     contact: contact
+    project: project
 
 # Logseq internal keys to strip from content
 logseq_internal_keys:

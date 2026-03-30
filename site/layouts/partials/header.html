@@ -87,8 +87,8 @@
                                      flag      → 🇫🇷 / 🇬🇧 / 🇹🇼
                                      flag_name → 🇫🇷 Français / 🇬🇧 English / 🇹🇼 繁體中文  (default)
                                      Falls back to languageName or lang code if data file absent. */ -}}
-                                {{- $langInfo := index site.Data.languages .Lang -}}
-                                {{- $display  := site.Data.languages.display | default "flag_name" -}}
+                                {{- $langInfo := index hugo.Data.languages .Lang -}}
+                                {{- $display  := hugo.Data.languages.display | default "flag_name" -}}
                                 {{- if $langInfo -}}
                                     {{- if eq $display "abbr"      -}}{{- .Lang | upper -}}
                                     {{- else if eq $display "name" -}}{{- $langInfo.name -}}

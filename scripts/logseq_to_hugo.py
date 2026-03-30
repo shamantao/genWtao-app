@@ -1,15 +1,21 @@
 #!/usr/bin/env python3
 """
 logseq_to_hugo.py
-Converts Logseq pages (with public:: true) to Hugo Markdown files.
+Converts Logseq pages to Hugo Markdown files.
 
-Usage:
-    python3 logseq_to_hugo.py --graph <graph_folder> --output <hugo_content_folder>
-    python3 logseq_to_hugo.py --graph <graph_folder> --output <hugo_content_folder> \
-                              --config <config/config.yaml> --site <site.yaml> [--clean]
+Usage (v0.5 — simplified):
+    python3 logseq_to_hugo.py [--clean]
+    python3 logseq_to_hugo.py --config config/config.yaml --clean
+
+    graph_path is read from config.yaml. All arguments are optional.
+
+Logseq page properties (v0.5 model — 3 properties):
+    type::   page | article | collection | form
+    menu::   section name from sitemap.md (cv, blog, contact…)
+    lang::   language code (fr, en, zh-tw)
 
 Two configuration files:
-    --config  Engine config (sections, theme, colors) — committed, shared.
+    --config  Engine config (graph_path, theme, colors) — committed, shared.
     --site    Personal site config (languages, hugo, hosting) — private, in Logseq graph.
 
 Supported Logseq syntax:
@@ -36,8 +42,11 @@ from pathlib import Path
 # ──────────────────────────────────────────────
 TODAY = datetime.today().strftime('%Y-%m-%d')
 
-# Default Logseq type → Hugo section mapping
-# Can be overridden via "sections:" in config.yaml
+# Valid type:: values (v0.5 model — behavioural, not section-specific)
+VALID_TYPES = {'page', 'article', 'collection', 'form'}
+
+# Legacy Logseq type → Hugo section mapping (v0.4 compat)
+# Used when a page has type:: cv instead of type:: page + menu:: cv
 DEFAULT_SECTIONS = {
     'home':    '',
     'cv':      'cv',
@@ -45,6 +54,7 @@ DEFAULT_SECTIONS = {
     'blog':    'blog',
     'curious': 'curious',
     'contact': 'contact',
+    'project': 'project',
     'page':    '',
 }
 
@@ -81,15 +91,18 @@ DEFAULT_THEME_PARAMS = {
 def load_config(config_path):
     """
     Load engine configuration from config/config.yaml.
-    Returns a dict with 'sections', 'logseq_internal_keys', 'theme_params',
-    'colors', and 'color_vars'.  No personal data.
+    Returns a dict with keys: graph_path, valid_types, legacy_sections,
+    logseq_internal_keys, theme_params, colors, color_vars, languages.
     """
     defaults = {
-        'sections':             DEFAULT_SECTIONS,
+        'graph_path':           None,
+        'valid_types':          set(VALID_TYPES),
+        'legacy_sections':      dict(DEFAULT_SECTIONS),
         'logseq_internal_keys': set(DEFAULT_INTERNAL_KEYS),
         'theme_params':         dict(DEFAULT_THEME_PARAMS),
         'colors':               {},
         'color_vars':           {},
+        'languages':            {},
     }
     if not config_path:
         return defaults
@@ -99,14 +112,18 @@ def load_config(config_path):
             cfg = yaml.safe_load(f)
         tp = dict(DEFAULT_THEME_PARAMS)
         tp.update(cfg.get('theme_params', {}))
+        vt = cfg.get('valid_types', list(VALID_TYPES))
         return {
-            'sections': cfg.get('sections', DEFAULT_SECTIONS),
+            'graph_path':  cfg.get('graph_path', None),
+            'valid_types': set(v.lower() for v in vt),
+            'legacy_sections': cfg.get('legacy_sections', cfg.get('sections', DEFAULT_SECTIONS)),
             'logseq_internal_keys': set(
                 k.lower() for k in cfg.get('logseq_internal_keys', list(DEFAULT_INTERNAL_KEYS))
             ),
             'theme_params': tp,
             'colors':    cfg.get('colors', {}),
             'color_vars': cfg.get('color_vars', {}),
+            'languages': cfg.get('languages', {}),
         }
     except Exception as e:
         print(f"  ⚠️  Config not loaded ({e}), using defaults.", file=sys.stderr)
@@ -191,6 +208,8 @@ def load_sitemap(graph_dir):
                     current['mode'] = val
                 elif key == 'provider':
                     current['provider'] = val
+                elif key == 'form_id':
+                    current['form_id'] = val
                 else:
                     current['labels'][key] = val
 
@@ -231,6 +250,8 @@ def inject_contact_provider(sitemap_entries, hugo_block):
             if 'params' not in hugo_block:
                 hugo_block['params'] = {}
             hugo_block['params']['contact_provider'] = entry['provider']
+            if 'form_id' in entry:
+                hugo_block['params']['contact_form_id'] = entry['form_id']
             print(f'  📧 Contact provider: {entry["provider"]}')
             return
 
@@ -814,29 +835,100 @@ def convert_content(text, internal_keys, lang='fr', widgets=None):
 # HUGO FRONT MATTER BUILDER
 # ──────────────────────────────────────────────
 
+def resolve_props(props, source_file, sections_map, valid_types, legacy_sections):
+    """Resolve auto-deduced properties and normalise the v0.5 / legacy model.
+
+    Detects whether the page uses the new model (menu:: present) or the
+    legacy model (type:: is a section name).  Populates internal keys
+    _title, _slug, _translationkey, _section, _page_type used by
+    build_front_matter and output_path.
+
+    Returns a list of validation warnings (empty = OK).
+    """
+    warnings = []
+    raw_type = props.get('type', '').strip().lower()
+    raw_menu = props.get('menu', '').strip().lower()
+
+    # --- Detect model ------------------------------------------------
+    if raw_menu:
+        # New v0.5 model: type:: is behavioural, menu:: is the section
+        page_type = raw_type if raw_type else 'page'
+        section   = raw_menu
+        if page_type not in valid_types:
+            warnings.append(f"type:: inconnu '{page_type}' (attendu: {sorted(valid_types)})")
+    elif raw_type in valid_types:
+        # Explicit v0.5 without menu:: (e.g. type:: page with no menu → root)
+        page_type = raw_type
+        section   = ''
+    elif raw_type and raw_type in legacy_sections:
+        # Legacy v0.4 model: type:: is actually a section name
+        page_type = 'page'
+        section   = raw_type
+    elif raw_type and raw_type in sections_map:
+        # type:: matches a sitemap section directly
+        page_type = 'page'
+        section   = raw_type
+    elif raw_type:
+        # Unknown type, treat as section for backward compat but warn
+        page_type = 'page'
+        section   = raw_type
+        warnings.append(f"type:: '{raw_type}' n'est ni un type valide ni une section connue")
+    else:
+        # No type at all → skip this page (will be filtered out)
+        page_type = ''
+        section   = ''
+
+    # --- Auto-deduce title, slug, translationKey ----------------------
+    title = props.get('title', Path(source_file).stem)
+    slug  = props.get('slug', re.sub(r'[^\w-]', '-', title.lower()).strip('-'))
+
+    # translationKey: explicit wins, else auto
+    tk = props.get('translationkey', '')
+    if not tk:
+        if page_type == 'article':
+            tk = slug
+        else:
+            tk = section if section else slug
+
+    # --- Store resolved values in props (prefixed with _) -------------
+    props['_title']          = title
+    props['_slug']           = slug
+    props['_translationkey'] = tk
+    props['_section']        = section
+    props['_page_type']      = page_type
+
+    return warnings
+
+
 def build_front_matter(props, source_file, tags=None, theme_params=None):
     """Build Hugo YAML front matter from Logseq page properties.
 
-    theme_params: dict mapping logical keys ('toc', 'toc_open', 'show_tags')
-                  to the actual front matter param names for the active theme
-                  (e.g. 'ShowToc' for PaperMod). Falls back to DEFAULT_THEME_PARAMS.
+    v0.5 model: type:: is behavioural (page/article/collection/form),
+    menu:: is the section. Auto-derives title, slug, translationKey.
+
+    Retrocompat: if no menu:: is present, falls back to v0.4 behaviour
+    where type:: is the section name directly.
     """
     if theme_params is None:
         theme_params = DEFAULT_THEME_PARAMS
 
-    title = props.get('title', Path(source_file).stem)
-    type_ = props.get('type', 'page')
-    slug  = props.get('slug', re.sub(r'[^\w-]', '-', title.lower()))
+    # Resolved properties (set by resolve_props before calling this)
+    title   = props.get('_title', Path(source_file).stem)
+    section = props.get('_section', '')
+    slug    = props.get('_slug', re.sub(r'[^\w-]', '-', title.lower()))
+    tk      = props.get('_translationkey', '')
+    ptype   = props.get('_page_type', 'page')  # behavioural type
+
     date  = props.get('date', TODAY)
     desc  = props.get('description', '')
     order = props.get('menu_order', '')
-    # translationKey:: in Logseq → lowercased by parse_logseq_properties → 'translationkey'
-    # Hugo uses this to link equivalent pages across languages (language switcher)
-    tk    = props.get('translationkey', '')
 
     toc = props.get('toc', 'false').lower() in ('true', '1', 'yes')
 
-    fm = ['---', f'title: "{title}"', f'slug: "{slug}"', f'type: "{type_}"', f'date: {date}']
+    # Hugo type = section name (not the behavioural type)
+    hugo_type = section if section else 'page'
+
+    fm = ['---', f'title: "{title}"', f'slug: "{slug}"', f'type: "{hugo_type}"', f'date: {date}']
     if desc:  fm.append(f'description: "{desc}"')
     if order: fm.append(f'weight: {order}')
     if tk:    fm.append(f'translationKey: "{tk}"')
@@ -852,21 +944,24 @@ def build_front_matter(props, source_file, tags=None, theme_params=None):
 # ──────────────────────────────────────────────
 
 def output_path(props, output_dir, sections_map, collection_types=None):
-    """Resolve the output path inside content/<lang>/<section>/."""
-    lang    = props.get('lang', 'fr').lower().replace('_', '-')  # zh-TW → zh-tw
-    type_   = props.get('type', 'page')
-    slug    = props.get('slug', 'page')
-    section = sections_map.get(type_, type_)  # fallback: use the type as section name
+    """Resolve the output path inside content/<lang>/<section>/.
 
-    if section:
-        dir_path = Path(output_dir) / lang / section
+    Uses resolved props (_section, _slug, _page_type) set by resolve_props().
+    """
+    lang    = props.get('lang', 'fr').lower().replace('_', '-')  # zh-TW → zh-tw
+    section = props.get('_section', '')
+    slug    = props.get('_slug', 'page')
+    ptype   = props.get('_page_type', 'page')
+
+    # Map section name to Hugo folder via sitemap/legacy
+    folder = sections_map.get(section, section)
+    if folder:
+        dir_path = Path(output_dir) / lang / folder
     else:
         dir_path = Path(output_dir) / lang
 
-    # Collection types (mode:: collection in sitemap.md) get one file per
-    # page (<slug>.md).  Everything else is a single section (_index.md).
-    _collections = collection_types or set()
-    if type_ in _collections:
+    # article type → individual file; everything else → _index.md
+    if ptype == 'article':
         filename = f'{slug}.md'
     else:
         filename = '_index.md'
@@ -878,12 +973,18 @@ def output_path(props, output_dir, sections_map, collection_types=None):
 # FILE PROCESSOR
 # ──────────────────────────────────────────────
 
-def process_file(src_path, output_dir, sections_map, internal_keys, theme_params=None, widgets=None, collection_types=None):
+def process_file(src_path, output_dir, sections_map, internal_keys, theme_params=None,
+                  widgets=None, collection_types=None, valid_types=None, legacy_sections=None):
     text  = Path(src_path).read_text(encoding='utf-8')
     props = parse_logseq_properties(text)
 
-    if props.get('public', 'false').lower() != 'true':
-        return None
+    # v0.5: a page is publishable when type:: is defined (replaces public:: true)
+    if not props.get('type', '').strip():
+        return None, []
+
+    _valid  = valid_types or VALID_TYPES
+    _legacy = legacy_sections or DEFAULT_SECTIONS
+    warnings = resolve_props(props, src_path, sections_map, _valid, _legacy)
 
     lang         = props.get('lang', 'fr').lower()
     tags         = extract_tags(text)
@@ -894,7 +995,7 @@ def process_file(src_path, output_dir, sections_map, internal_keys, theme_params
     out = output_path(props, output_dir, sections_map, collection_types=collection_types)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(hugo_content, encoding='utf-8')
-    return str(out)
+    return str(out), warnings
 
 
 # ──────────────────────────────────────────────
@@ -903,46 +1004,67 @@ def process_file(src_path, output_dir, sections_map, internal_keys, theme_params
 
 def main():
     parser = argparse.ArgumentParser(description='Convert a Logseq graph to Hugo content')
-    parser.add_argument('--graph',  required=True, help='Logseq graph root folder')
-    parser.add_argument('--output', required=True, help='Hugo content/ folder')
+    parser.add_argument('--graph',  default=None, help='Logseq graph root folder (default: from config.yaml graph_path)')
+    parser.add_argument('--output', default=None, help='Hugo content/ folder (default: site/content)')
     parser.add_argument('--config', default=None,  help='Path to config/config.yaml (engine config)')
     parser.add_argument('--site',   default=None,  help='Path to site.yaml (personal site config)')
     parser.add_argument('--clean',  action='store_true', help='Remove output folder before export')
     args = parser.parse_args()
 
-    graph_dir  = Path(args.graph)
-    output_dir = Path(args.output)
+    # Load engine config (sections, theme, colors — committed, shared)
+    cfg            = load_config(args.config)
+    valid_types    = cfg['valid_types']
+    legacy_sections = cfg['legacy_sections']
+    internal_keys  = cfg['logseq_internal_keys']
+    theme_params   = cfg['theme_params']
+    colors         = cfg['colors']
+    color_vars     = cfg['color_vars']
+
+    # Resolve graph_dir: CLI > config > error
+    if args.graph:
+        graph_dir = Path(args.graph)
+    elif cfg.get('graph_path'):
+        graph_dir = Path(cfg['graph_path'])
+    else:
+        print("❌ Pas de chemin graph : utilisez --graph ou définissez graph_path dans config.yaml", file=sys.stderr)
+        sys.exit(1)
+
+    # Resolve output_dir: CLI > default (site/content)
+    if args.output:
+        output_dir = Path(args.output)
+    else:
+        output_dir = Path(__file__).resolve().parent.parent / 'site' / 'content'
 
     if not graph_dir.exists():
         print(f"❌ Graph folder not found: {graph_dir}", file=sys.stderr)
         sys.exit(1)
 
-    # Load engine config (sections, theme, colors — committed, shared)
-    cfg           = load_config(args.config)
-    sections_map  = cfg['sections']
-    internal_keys = cfg['logseq_internal_keys']
-    theme_params  = cfg['theme_params']
-    colors        = cfg['colors']
-    color_vars    = cfg['color_vars']
-
     # Load personal site config (languages, hugo, hosting — private)
-    site_cfg  = load_site_config(args.site)
+    site_cfg   = load_site_config(args.site)
     languages  = site_cfg['languages']
     hugo_block = site_cfg['hugo']
     hosting    = site_cfg['hosting']
 
     # Load sitemap.md from Logseq graph (overrides sections + generates menus/i18n)
     sitemap_entries = load_sitemap(graph_dir)
+    sections_map    = dict(legacy_sections)
     collection_types = set()
     if sitemap_entries:
-        sections_map, collection_types = sitemap_to_sections(sitemap_entries)
+        sm_sections, collection_types = sitemap_to_sections(sitemap_entries)
+        # Sitemap takes priority, legacy fills gaps
+        for alias, target in sections_map.items():
+            if alias not in sm_sections:
+                sm_sections[alias] = target
+                if target in collection_types:
+                    collection_types.add(alias)
+        sections_map = sm_sections
         sitemap_to_menus(sitemap_entries, hugo_block)
         inject_contact_provider(sitemap_entries, hugo_block)
         print(f'🗺️  Sitemap loaded: {len(sitemap_entries)} section(s) from pages/sitemap.md')
         if collection_types:
             print(f'  📚 Collection types (multi-page): {sorted(collection_types)}')
     else:
-        print('  ℹ️  No sitemap.md found — using sections from config.yaml')
+        print('  ℹ️  No sitemap.md found — using legacy_sections from config.yaml')
 
     # Load widgets.md from Logseq graph
     widgets = load_widgets(graph_dir)
@@ -952,7 +1074,7 @@ def main():
         print('  ℹ️  No widgets.md found — {{widget ...}} placeholders will not be replaced')
 
     print(f"  ℹ️  Sections: {list(sections_map.keys())}")
-    print(f"  ℹ️  Ignored internal keys: {sorted(internal_keys)}")
+    print(f"  ℹ️  Valid types: {sorted(valid_types)}")
     print(f"  ℹ️  Theme params: {theme_params}")
 
     if args.clean and output_dir.exists():
@@ -993,20 +1115,33 @@ def main():
     if sitemap_entries:
         generate_i18n_from_sitemap(sitemap_entries, output_dir.parent)
 
-    exported = []
-    skipped  = []
+    exported    = []
+    skipped     = []
+    all_warnings = []
 
     for md_file in sorted(pages_dir.glob('*.md')):
-        result = process_file(md_file, output_dir, sections_map, internal_keys, theme_params=theme_params, widgets=widgets, collection_types=collection_types)
+        result, warnings = process_file(
+            md_file, output_dir, sections_map, internal_keys,
+            theme_params=theme_params, widgets=widgets,
+            collection_types=collection_types,
+            valid_types=valid_types, legacy_sections=legacy_sections)
         if result:
             exported.append(result)
             print(f"  ✅ {md_file.name} → {result}")
+            if warnings:
+                for w in warnings:
+                    print(f"     ⚠️  {w}")
+                all_warnings.extend((md_file.name, w) for w in warnings)
         else:
             skipped.append(md_file.name)
 
-    print(f"\n📤 Export done: {len(exported)} page(s) exported, {len(skipped)} skipped (no public:: true)")
+    print(f"\n📤 Export done: {len(exported)} page(s) exported, {len(skipped)} skipped (no type:: defined)")
     if skipped:
         print(f"   Skipped: {', '.join(skipped)}")
+    if all_warnings:
+        print(f"\n⚠️  {len(all_warnings)} warning(s):")
+        for fname, w in all_warnings:
+            print(f"   {fname}: {w}")
 
 
 if __name__ == '__main__':

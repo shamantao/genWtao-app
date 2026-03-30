@@ -26,7 +26,7 @@ FTP_PASSWORD="${FTP_PASSWORD:-}"
 
 # ── Locate Logseq graph + site.yaml ─────────────────────────
 # Override via LOGSEQ_GRAPH env var or edit this default path.
-LOGSEQ_GRAPH="${LOGSEQ_GRAPH:-/Users/phil/Library/CloudStorage/Dropbox/logseq/genWtao}"
+LOGSEQ_GRAPH="${LOGSEQ_GRAPH:-/Users/phil/Autosync/genWtao}"
 SITE_YAML="$LOGSEQ_GRAPH/site.yaml"
 
 # ── Utility functions ────────────────────────────────────────
