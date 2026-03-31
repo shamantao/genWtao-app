@@ -103,6 +103,7 @@ def load_config(config_path):
         'colors':               {},
         'color_vars':           {},
         'languages':            {},
+        'journal_articles':     False,
     }
     if not config_path:
         return defaults
@@ -124,6 +125,7 @@ def load_config(config_path):
             'colors':    cfg.get('colors', {}),
             'color_vars': cfg.get('color_vars', {}),
             'languages': cfg.get('languages', {}),
+            'journal_articles': cfg.get('journal_articles', False),
         }
     except Exception as e:
         print(f"  ⚠️  Config not loaded ({e}), using defaults.", file=sys.stderr)
@@ -920,6 +922,11 @@ def build_front_matter(props, source_file, tags=None, theme_params=None):
     ptype   = props.get('_page_type', 'page')  # behavioural type
 
     date  = props.get('date', TODAY)
+    # Normalise partial dates: "2011" → "2011-01-01", "2011-03" → "2011-03-01"
+    if re.match(r'^\d{4}$', date):
+        date = f'{date}-01-01'
+    elif re.match(r'^\d{4}-\d{2}$', date):
+        date = f'{date}-01'
     desc  = props.get('description', '')
     order = props.get('menu_order', '')
 
@@ -970,12 +977,107 @@ def output_path(props, output_dir, sections_map, collection_types=None):
 
 
 # ──────────────────────────────────────────────
+# JOURNAL BLOCK EXTRACTION
+# ──────────────────────────────────────────────
+
+def extract_journal_blocks(journal_file):
+    """Extract publishable blocks from a Logseq journal file.
+
+    Scans top-level bullets (``- ...``) for block-level ``type::`` properties.
+    Returns a list of ``(page_text, source_label)`` tuples where *page_text*
+    is reconstructed as if it were a standalone Logseq page so it can be fed
+    directly into ``process_file(..., text=page_text)``.
+
+    Date is auto-deduced from the journal filename (``2026_03_28.md`` →
+    ``2026-03-28``) unless ``date::`` is set explicitly in the block.
+    """
+    text = Path(journal_file).read_text(encoding='utf-8')
+    if not text.strip():
+        return []
+
+    # Derive date from filename: 2026_03_28.md → 2026-03-28
+    stem = Path(journal_file).stem
+    journal_date = stem.replace('_', '-')
+
+    # Split into top-level blocks (lines starting with "- " at column 0)
+    blocks = []
+    current_block = []
+    for line in text.splitlines():
+        if line.startswith('- '):
+            if current_block:
+                blocks.append(current_block)
+            current_block = [line]
+        else:
+            current_block.append(line)
+    if current_block:
+        blocks.append(current_block)
+
+    results = []
+    for block_lines in blocks:
+        # First line: strip "- " prefix
+        first_line = block_lines[0][2:]
+
+        props = {}
+        first_line_text = None
+
+        # Check if first line itself is a property
+        m = re.match(r'^(\w[\w_-]*)::[ \t]*(.*)', first_line.strip())
+        if m:
+            props[m.group(1).lower()] = m.group(2).strip()
+        else:
+            first_line_text = first_line
+
+        content_lines = []
+
+        # Process remaining lines
+        for line in block_lines[1:]:
+            # Block properties: 2-space indent + key:: value
+            prop_match = re.match(r'^  (\w[\w_-]*)::[ \t]*(.*)', line)
+            if prop_match and not content_lines:
+                # Properties must come before any content lines
+                props[prop_match.group(1).lower()] = prop_match.group(2).strip()
+            elif line.startswith('\t'):
+                # Child content: remove one leading tab
+                content_lines.append(line[1:])
+            elif line.strip() == '':
+                content_lines.append('')
+            else:
+                content_lines.append(line)
+
+        # Only process blocks that have type::
+        if not props.get('type'):
+            continue
+
+        # Auto-set date from journal filename if not explicitly set
+        if 'date' not in props:
+            props['date'] = journal_date
+
+        # Reconstruct as page text (properties at top, then content)
+        page_lines = []
+        for k, v in props.items():
+            page_lines.append(f'{k}:: {v}')
+        page_lines.append('')  # separator
+        if first_line_text:
+            page_lines.append(f'- {first_line_text}')
+        page_lines.extend(content_lines)
+
+        page_text = '\n'.join(page_lines)
+        slug = props.get('slug', props.get('title', stem))
+        source_label = f"{Path(journal_file).name}:{slug}"
+        results.append((page_text, source_label))
+
+    return results
+
+
+# ──────────────────────────────────────────────
 # FILE PROCESSOR
 # ──────────────────────────────────────────────
 
 def process_file(src_path, output_dir, sections_map, internal_keys, theme_params=None,
-                  widgets=None, collection_types=None, valid_types=None, legacy_sections=None):
-    text  = Path(src_path).read_text(encoding='utf-8')
+                  widgets=None, collection_types=None, valid_types=None, legacy_sections=None,
+                  text=None):
+    if text is None:
+        text = Path(src_path).read_text(encoding='utf-8')
     props = parse_logseq_properties(text)
 
     # v0.5: a page is publishable when type:: is defined (replaces public:: true)
@@ -1022,9 +1124,9 @@ def main():
 
     # Resolve graph_dir: CLI > config > error
     if args.graph:
-        graph_dir = Path(args.graph)
+        graph_dir = Path(os.path.expandvars(os.path.expanduser(args.graph)))
     elif cfg.get('graph_path'):
-        graph_dir = Path(cfg['graph_path'])
+        graph_dir = Path(os.path.expandvars(os.path.expanduser(cfg['graph_path'])))
     else:
         print("❌ Pas de chemin graph : utilisez --graph ou définissez graph_path dans config.yaml", file=sys.stderr)
         sys.exit(1)
@@ -1134,6 +1236,43 @@ def main():
                 all_warnings.extend((md_file.name, w) for w in warnings)
         else:
             skipped.append(md_file.name)
+
+    # ── Journal articles (optional) ──────────────────────────────────
+    journal_exported = []
+    journal_articles_enabled = cfg.get('journal_articles', False)
+    if journal_articles_enabled:
+        journals_dir = graph_dir / 'journals'
+        if journals_dir.exists():
+            print(f"\n📓 Scanning journal entries for articles…")
+            known_slugs = {Path(p).stem for p in exported if '/blog/' in p or '/curious/' in p}
+            for journal_file in sorted(journals_dir.glob('*.md')):
+                for page_text, source_label in extract_journal_blocks(journal_file):
+                    result, warnings = process_file(
+                        journal_file, output_dir, sections_map, internal_keys,
+                        theme_params=theme_params, widgets=widgets,
+                        collection_types=collection_types,
+                        valid_types=valid_types, legacy_sections=legacy_sections,
+                        text=page_text)
+                    if result:
+                        # Check slug conflict: pages/ wins over journals/
+                        result_slug = Path(result).stem
+                        if result_slug in known_slugs:
+                            print(f"  ⏭️  {source_label} → slug '{result_slug}' already exists in pages/, skipped")
+                            continue
+                        known_slugs.add(result_slug)
+                        journal_exported.append(result)
+                        print(f"  ✅ {source_label} → {result}")
+                        if warnings:
+                            for w in warnings:
+                                print(f"     ⚠️  {w}")
+                            all_warnings.extend((source_label, w) for w in warnings)
+            if journal_exported:
+                print(f"  📓 {len(journal_exported)} article(s) from journals")
+            else:
+                print(f"  ℹ️  No journal articles found (no top-level bullet with type::)")
+        else:
+            print(f"\n  ℹ️  No journals/ folder found in {graph_dir}")
+    exported.extend(journal_exported)
 
     print(f"\n📤 Export done: {len(exported)} page(s) exported, {len(skipped)} skipped (no type:: defined)")
     if skipped:

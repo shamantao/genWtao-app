@@ -100,6 +100,35 @@ lang:: en
 - **`slug::`** becomes the URL. Use only lowercase letters, numbers, and hyphens.
 - **`date::`** is required for articles (controls the order). For other pages it's filled automatically.
 
+### Journal articles (optional)
+
+You can also write quick articles directly inside your **Logseq daily journal** — no need to create a dedicated page.
+
+**Enable it** in `config/config.yaml`:
+```yaml
+journal_articles: true    # false by default
+```
+
+Then in any journal entry, add a top-level bullet with `type:: article`:
+```
+- type:: article
+  menu:: blog
+  lang:: fr
+  title:: Découverte de n8n
+  slug:: n8n-discovery
+  description:: Premiers pas avec n8n et Docker
+	- Premier paragraphe de contenu.
+	- Deuxième paragraphe avec plus de détails.
+		- Un sous-point.
+```
+
+**Rules:**
+- Only **top-level bullets** (first level `- `) with `type::` are scanned
+- `title::` and `slug::` are **required** (there is no filename to auto-deduce from)
+- `date::` is **auto-deduced** from the journal filename (`2026_03_28.md` → `2026-03-28`), but you can override it
+- Everything indented below the bullet = the article content
+- If a page in `pages/` has the same slug, **the page wins** (pages always take priority)
+
 ---
 
 ## The 4 page types
@@ -234,7 +263,7 @@ The contact form is **provider-agnostic**. You choose a service, put its ID in `
 - contact
 	- slug:: contact
 	- provider:: formspree
-	- form_id:: xreaoqvg
+	- form_id:: your_form_id
 	- fr:: Contact
 	- en:: Contact
 ```
@@ -247,7 +276,7 @@ Two fields:
 
 | Provider | `provider::` | Free tier | `form_id::` = |
 |---|---|---|---|
-| [Formspree](https://formspree.io) | `formspree` | 50/month | Form hashid (e.g. `xreaoqvg`) |
+| [Formspree](https://formspree.io) | `formspree` | 50/month | Form hashid (e.g. `xyzabcde`) |
 | [Web3Forms](https://web3forms.com) | `web3forms` | 250/month | Access key |
 | [FormSubmit](https://formsubmit.co) | `formsubmit` | Unlimited, no signup | Email hash |
 | [Getform](https://getform.io) | `getform` | 50/month | Endpoint ID |
@@ -396,6 +425,7 @@ on:
     branches: [main]
     paths:
       - 'pages/**'
+      - 'journals/**'
       - 'assets/**'
       - 'site.yaml'
 
@@ -474,6 +504,7 @@ your-logseq-graph/                        ← separate repository (private)
 ├── pages/
 │   ├── sitemap.md                        ← site structure, menus, contact provider
 │   └── widgets.md                        ← widget definitions
+├── journals/                             ← daily journal (optional article source)
 └── assets/                               ← images used in your pages
 ```
 

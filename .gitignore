@@ -1,5 +1,6 @@
 # macOS
 .DS_Store
+.~lock.*
 
 # Hugo build artifacts
 site/public/

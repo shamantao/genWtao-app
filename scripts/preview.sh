@@ -5,7 +5,7 @@
 #         ./scripts/preview.sh --build   (static build only, no server)
 #
 # The preview is generated outside the git repo to avoid pollution:
-#   /Users/phil/Downloads/_tmp/genWtao-preview/
+#   $HOME/Downloads/_tmp/genWtao-preview/
 #
 # Reads:
 #   config/config.yaml  — engine config (committed)
@@ -20,10 +20,10 @@ CONFIG="$APP_DIR/config/config.yaml"
 HUGO_PROJECT="$APP_DIR/site"
 HUGO_CONTENT="$HUGO_PROJECT/content"
 
-PREVIEW_DIR="/Users/phil/Downloads/_tmp/genWtao-preview"
+PREVIEW_DIR="$HOME/Downloads/_tmp/genWtao-preview"
 
-# ── Locate Logseq graph + site.yaml ─────────────────────────
-LOGSEQ_GRAPH="${LOGSEQ_GRAPH:-/Users/phil/Autosync/genWtao}"
+# ── Locate Logseq graph + site.yaml ─────────────────────
+LOGSEQ_GRAPH="${LOGSEQ_GRAPH:-$HOME/Autosync/genWtao}"
 SITE_YAML="$LOGSEQ_GRAPH/site.yaml"
 
 # ── Utility functions ────────────────────────────────────────

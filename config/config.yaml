@@ -1,7 +1,7 @@
-version: 0.5.0
+version: 0.6.1
 
-# Chemin du graph Logseq (écrit par install.sh, ou configurer manuellement)
-graph_path: /Users/phil/Autosync/genWtao
+# Chemin du graph Logseq (supports $HOME and ~ expansion)
+graph_path: $HOME/Autosync/genWtao
 
 # Types valides (les 4 comportements possibles dans type::)
 valid_types:
@@ -35,6 +35,11 @@ logseq_internal_keys:
   - card-repeats
   - card-last-interval
   - logseq.order-list-type
+
+# Journal articles: extract articles from Logseq journal entries
+# When true, top-level journal bullets with type:: are treated as pages.
+# title:: and slug:: are required on journal blocks. date:: is auto-deduced.
+journal_articles: false
 
 # Active Hugo theme and theme-specific front matter param mapping
 # To switch themes, update the right-hand values only.
