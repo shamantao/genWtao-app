@@ -33,17 +33,11 @@ jobs:
       - name: Install Python deps
         run: pip install pyyaml
 
-      - name: Restore config
-        env:
-          CONFIG_CONTENT: ${{ secrets.CONFIG_YAML }}
-        run: printf '%s\n' "$CONFIG_CONTENT" > genWtao-app/config/config.yaml
-
       - name: Export Logseq to Hugo
         run: |
           python3 genWtao-app/scripts/logseq_to_hugo.py \
             --graph  genWtao-graph \
             --output genWtao-app/site/content \
-            --config genWtao-app/config/config.yaml \
             --clean
 
       - name: Setup Hugo
@@ -66,7 +60,7 @@ jobs:
           import sys
           import yaml
 
-          with open('genWtao-app/config/config.yaml', encoding='utf-8') as handle:
+          with open('genWtao-graph/config.yaml', encoding='utf-8') as handle:
               cfg = yaml.safe_load(handle) or {}
 
           hosting = cfg.get('hosting', {})

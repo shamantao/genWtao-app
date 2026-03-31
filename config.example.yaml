@@ -1,8 +1,9 @@
-version: 0.7.1
-
-# Chemin du graph Logseq (supports $HOME and ~ expansion)
-# Set by install.sh — or edit manually
-graph_path: $HOME/path/to/your-logseq-graph
+# ──────────────────────────────────────────────────────────────
+# config.yaml — Site configuration (lives in your Logseq graph root)
+# ──────────────────────────────────────────────────────────────
+# This file is read by the genWtao engine to build your site.
+# It stays in your private graph repository — never on the public app repo.
+# Copy this file to your graph root and edit it.
 
 # ──────────────────────────────────────────────────────────────
 # Hosting — where the site is deployed
@@ -106,85 +107,3 @@ hugo:
         goldmark:
             renderer:
                 unsafe: true
-
-# Types valides (les 4 comportements possibles dans type::)
-valid_types:
-  - page
-  - article
-  - collection
-  - form
-
-# Rétrocompatibilité v0.4 : anciens type:: → menu:: + type::
-# Si une page utilise l'ancien modèle (type:: cv au lieu de type:: page + menu:: cv)
-# ce mapping traduit l'ancien type en section Hugo
-legacy_sections:
-    home: ""
-    cv: cv
-    post: blog
-    blog: blog
-    curious: curious
-    contact: contact
-    project: project
-
-# Logseq internal keys to strip from content
-logseq_internal_keys:
-  - collapsed
-  - id
-  - background-color
-  - heading
-  - card-last-reviewed
-  - card-next-schedule
-  - card-last-score
-  - card-ease-factor
-  - card-repeats
-  - card-last-interval
-  - logseq.order-list-type
-
-# Journal articles: extract articles from Logseq journal entries
-# When true, top-level journal bullets with type:: are treated as pages.
-# title:: and slug:: are required on journal blocks. date:: is auto-deduced.
-journal_articles: false
-
-# Active Hugo theme and theme-specific front matter param mapping
-# To switch themes, update the right-hand values only.
-theme: papermod
-theme_params:
-    toc: ShowToc
-    toc_open: TocOpen
-    show_tags: ShowTags
-
-# Theme colors - generates site/static/css/theme-colors.css
-colors:
-    light:
-        background:    "rgb(255, 255, 255)"
-        surface:       "rgb(255, 255, 255)"
-        text_primary:  "rgb(30, 30, 30)"
-        text_secondary: "rgb(108, 108, 108)"
-        text_content:  "rgb(44, 44, 44)"
-        surface_muted: "rgb(214, 214, 214)"
-        code_bg:       "rgb(245, 245, 245)"
-        code_block_bg: "rgb(28, 29, 33)"
-        border:        "rgb(238, 238, 238)"
-    dark:
-        background:    "rgb(29, 30, 32)"
-        surface:       "rgb(46, 46, 51)"
-        text_primary:  "rgb(218, 218, 219)"
-        text_secondary: "rgb(155, 156, 157)"
-        text_content:  "rgb(196, 196, 197)"
-        surface_muted: "rgb(65, 66, 68)"
-        code_bg:       "rgb(55, 56, 62)"
-        code_block_bg: "rgb(46, 46, 51)"
-        border:        "rgb(51, 51, 51)"
-
-# Color variable mapping - semantic name -> CSS variable for active theme
-# Switching themes = update this mapping only.
-color_vars:
-    background:    "--theme"
-    surface:       "--entry"
-    text_primary:  "--primary"
-    text_secondary: "--secondary"
-    text_content:  "--content"
-    surface_muted: "--tertiary"
-    code_bg:       "--code-bg"
-    code_block_bg: "--hljs-bg"
-    border:        "--border"

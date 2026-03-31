@@ -3,11 +3,11 @@
 logseq_to_hugo.py
 Converts Logseq pages to Hugo Markdown files.
 
-Usage (v0.5 — simplified):
+Usage (v0.8):
     python3 logseq_to_hugo.py [--clean]
-    python3 logseq_to_hugo.py --config config/config.yaml --clean
+    python3 logseq_to_hugo.py --graph /path/to/graph --clean
 
-    graph_path is read from config.yaml. All arguments are optional.
+    graph_path is read from graph_path.yaml. Config is auto-loaded from {graph}/config.yaml.
 
 Logseq page properties (v0.5 model — 3 properties):
     type::   page | article | collection | form
@@ -87,11 +87,29 @@ DEFAULT_THEME_PARAMS = {
     'show_tags': 'ShowTags',
 }
 
+def load_graph_path_yaml():
+    """Read graph_path from graph_path.yaml at the app root."""
+    app_root = Path(__file__).resolve().parent.parent
+    gp_file = app_root / 'graph_path.yaml'
+    if not gp_file.exists():
+        return None
+    try:
+        import yaml
+        with open(gp_file, encoding='utf-8') as f:
+            data = yaml.safe_load(f) or {}
+        raw = data.get('graph_path', '')
+        if raw:
+            return os.path.expandvars(os.path.expanduser(raw))
+    except Exception:
+        pass
+    return None
+
+
 def load_config(config_path):
     """
-    Load engine configuration from config/config.yaml.
-    Returns a dict with keys: graph_path, valid_types, legacy_sections,
-    logseq_internal_keys, theme_params, colors, color_vars, languages.
+    Load engine configuration from config.yaml (in the graph root).
+    Returns a dict with keys: valid_types, legacy_sections,
+    logseq_internal_keys, theme_params, colors, color_vars, languages, etc.
     """
     defaults = {
         'graph_path':           None,
@@ -1083,29 +1101,38 @@ def process_file(src_path, output_dir, sections_map, internal_keys, theme_params
 
 def main():
     parser = argparse.ArgumentParser(description='Convert a Logseq graph to Hugo content')
-    parser.add_argument('--graph',  default=None, help='Logseq graph root folder (default: from config.yaml graph_path)')
+    parser.add_argument('--graph',  default=None, help='Logseq graph root folder (default: from graph_path.yaml)')
     parser.add_argument('--output', default=None, help='Hugo content/ folder (default: site/content)')
-    parser.add_argument('--config', default=None,  help='Path to config/config.yaml (engine config)')
+    parser.add_argument('--config', default=None,  help='Path to config.yaml (default: {graph}/config.yaml)')
     parser.add_argument('--clean',  action='store_true', help='Remove output folder before export')
     args = parser.parse_args()
 
-    # Load engine config (sections, theme, colors, hosting, hugo, languages)
-    cfg            = load_config(args.config)
+    # 1. Resolve graph directory: CLI > graph_path.yaml > error
+    if args.graph:
+        graph_dir = Path(os.path.expandvars(os.path.expanduser(args.graph)))
+    else:
+        gp = load_graph_path_yaml()
+        if gp:
+            graph_dir = Path(gp)
+        else:
+            print("❌ No graph path: use --graph or create graph_path.yaml", file=sys.stderr)
+            sys.exit(1)
+
+    # 2. Resolve config path: CLI > {graph}/config.yaml
+    config_path = args.config
+    if not config_path:
+        candidate = graph_dir / 'config.yaml'
+        if candidate.exists():
+            config_path = str(candidate)
+
+    # 3. Load engine config
+    cfg            = load_config(config_path)
     valid_types    = cfg['valid_types']
     legacy_sections = cfg['legacy_sections']
     internal_keys  = cfg['logseq_internal_keys']
     theme_params   = cfg['theme_params']
     colors         = cfg['colors']
     color_vars     = cfg['color_vars']
-
-    # Resolve graph_dir: CLI > config > error
-    if args.graph:
-        graph_dir = Path(os.path.expandvars(os.path.expanduser(args.graph)))
-    elif cfg.get('graph_path'):
-        graph_dir = Path(os.path.expandvars(os.path.expanduser(cfg['graph_path'])))
-    else:
-        print("❌ Pas de chemin graph : utilisez --graph ou définissez graph_path dans config.yaml", file=sys.stderr)
-        sys.exit(1)
 
     # Resolve output_dir: CLI > default (site/content)
     if args.output:
@@ -1178,7 +1205,7 @@ def main():
         print(f"  ℹ️  No assets folder found in {graph_dir}")
 
     # Generate hugo.yaml from config.yaml hugo: block
-    config_was_loaded = args.config is not None
+    config_was_loaded = config_path is not None
     generate_hugo_yaml(hugo_block, hosting, output_dir.parent, config_was_loaded)
 
     # Generate theme-colors.css from config.yaml colors: and color_vars:

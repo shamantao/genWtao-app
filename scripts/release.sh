@@ -7,13 +7,13 @@
 #   ./scripts/release.sh                        # opens $EDITOR for message
 #
 # What it does:
-#   1. Reads version from config/config.yaml (committed engine config)
+#   1. Reads version from graph_path.yaml (app root)
 #   2. Stages all modified tracked files + new untracked files
 #   3. Commits with your message (prefixed with version)
 #   4. Creates an annotated git tag v<version>
 #   5. Pushes commit + tag to origin
 #
-# To bump the version: edit config/config.yaml line 1 BEFORE running.
+# To bump the version: edit graph_path.yaml line 1 BEFORE running.
 # ─────────────────────────────────────────────────────────────
 set -euo pipefail
 
@@ -21,7 +21,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$APP_DIR"
 
-CONFIG_CFG="config/config.yaml"
+CONFIG_CFG="graph_path.yaml"
 
 # ── Read version ──────────────────────────────────────────────
 if [[ ! -f "$CONFIG_CFG" ]]; then

@@ -8,13 +8,14 @@
 #   $HOME/Downloads/_tmp/genWtao-preview/
 #
 # Reads:
-#   config/config.yaml  — engine config (graph path, hosting, hugo, theme, colors)
+#   graph_path.yaml     — local pointer to the Logseq graph
+#   {graph}/config.yaml  — site config (hosting, hugo, theme, colors)
 set -euo pipefail
 
 # ── Paths ────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_DIR="$(dirname "$SCRIPT_DIR")"
-CONFIG="$APP_DIR/config/config.yaml"
+GRAPH_PATH_FILE="$APP_DIR/graph_path.yaml"
 
 HUGO_PROJECT="$APP_DIR/site"
 HUGO_CONTENT="$HUGO_PROJECT/content"
@@ -25,12 +26,14 @@ PREVIEW_DIR="$HOME/Downloads/_tmp/genWtao-preview"
 if [[ -z "${LOGSEQ_GRAPH:-}" ]]; then
     LOGSEQ_GRAPH=$(python3 -c "
 import yaml, os
-with open('$CONFIG') as f:
+with open('$GRAPH_PATH_FILE') as f:
     c = yaml.safe_load(f)
 p = c.get('graph_path', '')
 print(os.path.expandvars(os.path.expanduser(p)))
 ")
 fi
+
+CONFIG="$LOGSEQ_GRAPH/config.yaml"
 
 # ── Utility functions ────────────────────────────────────────
 log()  { echo ""; echo "▶ $*"; }

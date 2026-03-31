@@ -4,8 +4,9 @@
 #
 # What it does:
 #   1. Asks for the Logseq graph path
-#   2. Generates config/config.yaml from config/config.example.yaml
-#   3. Creates template pages in the graph: sitemap.md, colors.md,
+#   2. Generates graph_path.yaml (local pointer to the graph)
+#   3. Copies config.example.yaml to the graph root as config.yaml
+#   4. Creates template pages in the graph: sitemap.md, colors.md,
 #      widgets.md, 404.md (skips if they already exist)
 # ──────────────────────────────────────────────────────────────
 set -euo pipefail
@@ -13,8 +14,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-CONFIG_EXAMPLE="config/config.example.yaml"
-CONFIG_FILE="config/config.yaml"
+CONFIG_EXAMPLE="config.example.yaml"
+GRAPH_PATH_FILE="graph_path.yaml"
+GRAPH_PATH_EXAMPLE="graph_path.example.yaml"
 
 # ── Helpers ───────────────────────────────────────────────────
 ask() {
@@ -59,28 +61,44 @@ fi
 echo "✅ Graph found: $GRAPH_EXPANDED"
 echo ""
 
-# ── 2. Generate config.yaml ─────────────────────────────────
+# ── 2. Generate graph_path.yaml ──────────────────────────────
+if [[ ! -f "$GRAPH_PATH_EXAMPLE" ]]; then
+    echo "❌ $GRAPH_PATH_EXAMPLE not found. Are you in the genWtao-app root?" >&2
+    exit 1
+fi
+
+if [[ -f "$GRAPH_PATH_FILE" ]]; then
+    echo "⚠️  $GRAPH_PATH_FILE already exists."
+    read -r -p "   Overwrite? [y/N]: " confirm
+    if [[ ! "$confirm" =~ ^[yY]$ ]]; then
+        echo "   Skipped graph_path.yaml generation."
+        echo ""
+    else
+        sed "s|graph_path:.*|graph_path: $GRAPH_PATH|" "$GRAPH_PATH_EXAMPLE" > "$GRAPH_PATH_FILE"
+        echo "✅ $GRAPH_PATH_FILE updated with your graph path."
+        echo ""
+    fi
+else
+    sed "s|graph_path:.*|graph_path: $GRAPH_PATH|" "$GRAPH_PATH_EXAMPLE" > "$GRAPH_PATH_FILE"
+    echo "✅ $GRAPH_PATH_FILE created."
+    echo ""
+fi
+
+# ── 3. Copy config.example.yaml to graph ─────────────────────
+GRAPH_CONFIG="$GRAPH_EXPANDED/config.yaml"
+
 if [[ ! -f "$CONFIG_EXAMPLE" ]]; then
     echo "❌ $CONFIG_EXAMPLE not found. Are you in the genWtao-app root?" >&2
     exit 1
 fi
 
-if [[ -f "$CONFIG_FILE" ]]; then
-    echo "⚠️  $CONFIG_FILE already exists."
-    read -r -p "   Overwrite? [y/N]: " confirm
-    if [[ ! "$confirm" =~ ^[yY]$ ]]; then
-        echo "   Skipped config generation."
-        echo ""
-    else
-        sed "s|graph_path:.*|graph_path: $GRAPH_PATH|" "$CONFIG_EXAMPLE" > "$CONFIG_FILE"
-        echo "✅ $CONFIG_FILE updated with your graph path."
-        echo ""
-    fi
+if [[ -f "$GRAPH_CONFIG" ]]; then
+    echo "ℹ️  config.yaml already exists in graph — skipped."
 else
-    sed "s|graph_path:.*|graph_path: $GRAPH_PATH|" "$CONFIG_EXAMPLE" > "$CONFIG_FILE"
-    echo "✅ $CONFIG_FILE created."
-    echo ""
+    cp "$CONFIG_EXAMPLE" "$GRAPH_CONFIG"
+    echo "✅ config.yaml copied to graph root."
 fi
+echo ""
 
 # ── 3. Create template pages in graph ───────────────────────
 PAGES_DIR="$GRAPH_EXPANDED/pages"
@@ -121,7 +139,7 @@ public:: false
 create_if_missing "colors.md" "title:: Colors
 public:: false
 
-Configure your theme colors in config/config.yaml (colors: section).
+Configure your theme colors in config.yaml (colors: section) at the root of your graph.
 This page is a reminder — the engine reads colors from config.yaml, not from here.
 
 - Light theme
@@ -162,9 +180,9 @@ echo "────────────────────────�
 echo "🎉 Setup complete!"
 echo ""
 echo "Next steps:"
-echo "  1. Edit $CONFIG_FILE: set your hosting URL, FTP host/user, Hugo config, languages"
+echo "  1. Edit config.yaml in your graph: set hosting URL, FTP host/user, Hugo config, languages"
 echo "  2. Edit the template pages in $PAGES_DIR"
 echo "  3. On GitHub: set repository variable GRAPH_REPO = owner/your-graph-repo"
-echo "  4. On GitHub: set secrets GH_TOKEN, FTP_PASSWORD, CONTACT_FORM_ID"
-echo "  5. Run: python3 scripts/logseq_to_hugo.py --config $CONFIG_FILE --clean"
+echo "  4. On GitHub: set secrets GH_TOKEN, FTP_PASSWORD"
+echo "  5. Run: python3 scripts/logseq_to_hugo.py --clean"
 echo ""

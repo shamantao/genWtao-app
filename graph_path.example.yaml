@@ -1,0 +1,5 @@
+# graph_path.example.yaml — Copy this to graph_path.yaml and edit
+# (or run ./install.sh which does it for you)
+
+version: 0.8.0
+graph_path: $HOME/path/to/your-logseq-graph
