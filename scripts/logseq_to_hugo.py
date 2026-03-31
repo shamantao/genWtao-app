@@ -477,7 +477,7 @@ def generate_languages_data(languages, hugo_static_parent, config_was_loaded):
 # HUGO CONFIG GENERATOR
 # ──────────────────────────────────────────────
 
-def generate_hugo_yaml(hugo_block, hosting, hugo_site_dir, config_was_loaded):
+def generate_hugo_yaml(hugo_block, hosting, languages, hugo_site_dir, config_was_loaded):
     """
     Generate site/hugo.yaml from config.yaml hugo: block.
 
@@ -485,6 +485,8 @@ def generate_hugo_yaml(hugo_block, hosting, hugo_site_dir, config_was_loaded):
     it contains personal data (site title, base URL, etc.).
 
     baseURL is automatically derived from hosting.site_url.
+    weight, languageName, and contentDir are auto-filled from the
+    top-level languages: block when not explicitly set in hugo.languages.
 
     If config was not loaded (--config missing), the existing file is kept
     untouched to avoid breaking the Hugo build.
@@ -502,6 +504,19 @@ def generate_hugo_yaml(hugo_block, hosting, hugo_site_dir, config_was_loaded):
     if not hugo_block:
         print('  ℹ️  No hugo: block in config — skipping hugo.yaml generation.')
         return
+
+    # Auto-fill hugo.languages from top-level languages: block
+    if 'languages' in hugo_block and languages:
+        weight = 1
+        for lang_code, lang_cfg in hugo_block['languages'].items():
+            top = languages.get(lang_code, {})
+            if 'weight' not in lang_cfg:
+                lang_cfg['weight'] = weight
+                weight += 1
+            if 'languageName' not in lang_cfg and 'name' in top:
+                lang_cfg['languageName'] = top['name']
+            if 'contentDir' not in lang_cfg:
+                lang_cfg['contentDir'] = f'content/{lang_code}'
 
     # Derive baseURL from hosting.site_url
     site_url = hosting.get('site_url', '')
@@ -1206,7 +1221,7 @@ def main():
 
     # Generate hugo.yaml from config.yaml hugo: block
     config_was_loaded = config_path is not None
-    generate_hugo_yaml(hugo_block, hosting, output_dir.parent, config_was_loaded)
+    generate_hugo_yaml(hugo_block, hosting, languages, output_dir.parent, config_was_loaded)
 
     # Generate theme-colors.css from config.yaml colors: and color_vars:
     hugo_static = output_dir.parent / 'static'
