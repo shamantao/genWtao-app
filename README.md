@@ -26,10 +26,11 @@ Theme: [PaperMod](https://github.com/adityatelange/hugo-PaperMod) · License: [M
 
 1. **Write** your pages in Logseq (on computer or phone)
 2. **Sync** your Logseq graph to GitHub (via the Logseq Git plugin on your computer)
-3. **Click "Run workflow"** on github.com → Actions tab (from any browser, any device)
-4. **Done** — your site is live in 2–3 minutes
+3. **Done** — your site rebuilds and deploys automatically in 2–3 minutes
 
-Everything runs in the cloud. Your computer doesn't need to be on for step 3.
+When you push changes to your graph repository, a GitHub Actions workflow automatically triggers the build and deploy pipeline on the app repository. No manual step needed.
+
+You can also trigger a build manually: go to your app repository on github.com → **Actions** tab → **Generate and Deploy** → **Run workflow**.
 
 ---
 
@@ -304,21 +305,20 @@ The script replaces it with the actual HTML when building the site.
 
 ## Publishing
 
-### Step 1 — Sync Logseq to GitHub
+### Automatic (recommended)
 
-On your computer, the **Logseq Git plugin** automatically sends your pages to GitHub. On phone, sync to your computer via Autosync or similar.
+Once [initial setup](#initial-setup) is complete, publishing is fully automatic:
 
-### Step 2 — Trigger the build
+1. Edit your pages in Logseq
+2. The Logseq Git plugin pushes your changes to GitHub
+3. The graph repository notifies the app repository → build → deploy
+4. Your site is live in 2–3 minutes
 
-From **any browser** (computer or phone):
-1. Go to your repository on github.com → **Actions** tab
-2. Click **Generate and Deploy**
-3. Click **Run workflow**
-4. Wait 2–3 minutes
+### Manual trigger
 
-### Step 3 — Your site is live
-
-The system converts your Logseq pages, builds the site, and uploads it to your hosting. Done.
+You can also trigger a build manually from **any browser** (computer or phone):
+1. Go to your app repository on github.com → **Actions** tab
+2. Click **Generate and Deploy** → **Run workflow**
 
 ### Testing locally
 
@@ -339,8 +339,10 @@ cd site && hugo server
 
 ## Initial setup
 
+### 1. Clone and configure
+
 ```bash
-git clone https://github.com/shamantao/genWtao-app.git
+git clone https://github.com/<your-username>/genWtao-app.git
 cd genWtao-app
 git submodule update --init --recursive
 
@@ -349,12 +351,75 @@ cp site.example.yaml /path/to/your-logseq-graph/site.yaml
 # Edit config/config.yaml: set graph_path to your Logseq graph folder
 ```
 
-Then add these secrets on GitHub (Settings → Secrets → Actions):
+In `generate-and-deploy.yml`, update the repository reference to point to your own graph repository:
+```yaml
+      - name: Checkout genWtao-graph
+        uses: actions/checkout@v4
+        with:
+          repository: <your-username>/<your-graph-repo>   # ← your graph repo
+```
 
-| Name | What it is |
-|------|------------|
-| `GH_TOKEN` | A GitHub access token (to read your Logseq graph) |
-| `FTP_PASSWORD` | Your hosting FTP password |
+### 2. Create a GitHub Personal Access Token
+
+This token allows the two repositories to communicate (the graph triggers the build, and the app reads the graph content).
+
+1. Go to **github.com** → your avatar (top right) → **Settings**
+2. Scroll down to **Developer settings** (bottom of the left menu)
+3. **Personal access tokens** → **Fine-grained tokens** → **Generate new token**
+4. Fill in:
+   - **Token name**: `genWtao-deploy` (or any name you like)
+   - **Expiration**: 90 days (you can renew it later)
+   - **Repository access**: **Only select repositories** → select both your app and graph repositories
+   - **Permissions** → **Repository permissions**:
+     - **Contents**: `Read` (to checkout the graph)
+     - **Actions**: `Write` (to trigger the deploy workflow via `repository_dispatch`)
+5. Click **Generate token** and **copy the token immediately** (it won't be visible again)
+
+### 3. Add secrets on GitHub
+
+Add the following secrets on **both repositories** (Settings → Secrets and variables → Actions → New repository secret):
+
+| Secret | Where | What it is |
+|--------|-------|------------|
+| `GH_TOKEN` | **app repo** + **graph repo** | The Personal Access Token created above |
+| `FTP_PASSWORD` | **app repo** only | Your hosting FTP password |
+
+### 4. Add the notification workflow to your graph repository
+
+Create the file `.github/workflows/notify-app.yml` in your graph repository:
+
+```yaml
+name: Notify app
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'pages/**'
+      - 'assets/**'
+      - 'site.yaml'
+
+jobs:
+  trigger-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Generate and Deploy
+        run: |
+          curl -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.GH_TOKEN }}" \
+            https://api.github.com/repos/<your-username>/<your-app-repo>/dispatches \
+            -d '{"event_type": "graph-updated"}'
+```
+
+Replace `<your-username>/<your-app-repo>` with your actual app repository path.
+
+### 5. Test the pipeline
+
+1. Push a change to your graph repository (edit any file in `pages/`)
+2. Go to your **graph repo** → Actions → the **"Notify app"** workflow should run
+3. Then go to your **app repo** → Actions → **"Generate and Deploy"** should trigger automatically
+4. Your site is live in 2–3 minutes
 
 ---
 

@@ -2,6 +2,8 @@ name: Generate and Deploy
 
 on:
   workflow_dispatch:
+  repository_dispatch:
+    types: [graph-updated]
 
 jobs:
   build-and-deploy:
