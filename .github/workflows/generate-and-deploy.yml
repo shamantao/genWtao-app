@@ -21,7 +21,7 @@ jobs:
       - name: Checkout genWtao-graph
         uses: actions/checkout@v4
         with:
-          repository: shamantao/genWtao-graph
+          repository: ${{ vars.GRAPH_REPO }}
           token: ${{ secrets.GH_TOKEN }}
           path: genWtao-graph
 

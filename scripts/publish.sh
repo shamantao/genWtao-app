@@ -25,8 +25,16 @@ fi
 FTP_PASSWORD="${FTP_PASSWORD:-}"
 
 # ── Locate Logseq graph + site.yaml ─────────────────────────
-# Override via LOGSEQ_GRAPH env var or edit this default path.
-LOGSEQ_GRAPH="${LOGSEQ_GRAPH:-$HOME/Autosync/genWtao}"
+# Override via LOGSEQ_GRAPH env var, otherwise read from config.yaml.
+if [[ -z "${LOGSEQ_GRAPH:-}" ]]; then
+    LOGSEQ_GRAPH=$(python3 -c "
+import yaml, os
+with open('$CONFIG') as f:
+    c = yaml.safe_load(f)
+p = c.get('graph_path', '')
+print(os.path.expandvars(os.path.expanduser(p)))
+")
+fi
 SITE_YAML="$LOGSEQ_GRAPH/site.yaml"
 
 # ── Utility functions ────────────────────────────────────────

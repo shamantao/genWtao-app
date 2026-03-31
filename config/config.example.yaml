@@ -1,7 +1,8 @@
-version: 0.6.1
+version: 0.7.0
 
 # Chemin du graph Logseq (supports $HOME and ~ expansion)
-graph_path: $HOME/Autosync/genWtao
+# Set by install.sh — or edit manually
+graph_path: $HOME/path/to/your-logseq-graph
 
 # Types valides (les 4 comportements possibles dans type::)
 valid_types:

@@ -23,7 +23,15 @@ HUGO_CONTENT="$HUGO_PROJECT/content"
 PREVIEW_DIR="$HOME/Downloads/_tmp/genWtao-preview"
 
 # ── Locate Logseq graph + site.yaml ─────────────────────
-LOGSEQ_GRAPH="${LOGSEQ_GRAPH:-$HOME/Autosync/genWtao}"
+if [[ -z "${LOGSEQ_GRAPH:-}" ]]; then
+    LOGSEQ_GRAPH=$(python3 -c "
+import yaml, os
+with open('$CONFIG') as f:
+    c = yaml.safe_load(f)
+p = c.get('graph_path', '')
+print(os.path.expandvars(os.path.expanduser(p)))
+")
+fi
 SITE_YAML="$LOGSEQ_GRAPH/site.yaml"
 
 # ── Utility functions ────────────────────────────────────────
