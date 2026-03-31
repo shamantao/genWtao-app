@@ -407,6 +407,7 @@ Add the following **secrets** on both repositories (Settings → Secrets and var
 |--------|-------|------------|
 | `GH_TOKEN` | **app repo** + **graph repo** | The Personal Access Token created above |
 | `FTP_PASSWORD` | **app repo** only | Your hosting FTP password |
+| `CONFIG_YAML` | **app repo** only | Full content of `config/config.yaml` (copy-paste the file) |
 
 Add the following **variable** on the app repository (Settings → Secrets and variables → Actions → Variables → New repository variable):
 
