@@ -4,9 +4,8 @@
 # Usage:  ./scripts/publish.sh
 #
 # Reads:
-#   config/config.yaml  — engine config (committed)
-#   <graph>/site.yaml   — personal site config (in Logseq graph)
-#   .env                — secrets (FTP_PASSWORD, FORMSPREE_ID)
+#   config/config.yaml  — engine config (graph path, hosting, hugo, theme, colors)
+#   .env                — secrets (FTP_PASSWORD)
 set -euo pipefail
 
 # ── Paths ────────────────────────────────────────────────────
@@ -24,7 +23,7 @@ if [[ -f "$APP_DIR/.env" ]]; then
 fi
 FTP_PASSWORD="${FTP_PASSWORD:-}"
 
-# ── Locate Logseq graph + site.yaml ─────────────────────────
+# ── Locate Logseq graph ──────────────────────────────────────
 # Override via LOGSEQ_GRAPH env var, otherwise read from config.yaml.
 if [[ -z "${LOGSEQ_GRAPH:-}" ]]; then
     LOGSEQ_GRAPH=$(python3 -c "
@@ -35,18 +34,17 @@ p = c.get('graph_path', '')
 print(os.path.expandvars(os.path.expanduser(p)))
 ")
 fi
-SITE_YAML="$LOGSEQ_GRAPH/site.yaml"
 
 # ── Utility functions ────────────────────────────────────────
 log()  { echo ""; echo "▶ $*"; }
 ok()   { echo "  ✅ $*"; }
 fail() { echo "  ❌ $*"; exit 1; }
 
-# ── Read site.yaml values via Python ─────────────────────────
-read_site_yaml() {
+# ── Read hosting config from config.yaml via Python ──────────
+read_hosting_config() {
     python3 -c "
 import yaml, sys
-with open('$SITE_YAML') as f:
+with open('$CONFIG') as f:
     c = yaml.safe_load(f)
 h = c.get('hosting', {})
 ftp = h.get('ftp', {})
@@ -65,15 +63,14 @@ command -v hugo    >/dev/null 2>&1 || fail "Hugo not installed. Run: brew instal
 command -v python3 >/dev/null 2>&1 || fail "Python3 required"
 
 [[ -d "$LOGSEQ_GRAPH" ]] || fail "Logseq graph not found: $LOGSEQ_GRAPH"
-[[ -f "$SITE_YAML" ]]    || fail "site.yaml not found: $SITE_YAML"
 [[ -d "$HUGO_PROJECT" ]] || fail "Hugo project not found: $HUGO_PROJECT"
 [[ -n "$FTP_PASSWORD" ]] || fail "FTP_PASSWORD not set. Create $APP_DIR/.env with FTP_PASSWORD=yourpassword"
 
-# Read hosting details from site.yaml
-IFS=$'\n' read -r -d '' SITE_URL FTP_HOST FTP_USER FTP_PORT FTP_REMOTE <<< "$(read_site_yaml)" || true
+# Read hosting details from config.yaml
+IFS=$'\n' read -r -d '' SITE_URL FTP_HOST FTP_USER FTP_PORT FTP_REMOTE <<< "$(read_hosting_config)" || true
 
-[[ -n "$FTP_HOST" ]] || fail "No hosting.ftp.host in $SITE_YAML"
-[[ -n "$FTP_USER" ]] || fail "No hosting.ftp.user in $SITE_YAML"
+[[ -n "$FTP_HOST" ]] || fail "No hosting.ftp.host in $CONFIG"
+[[ -n "$FTP_USER" ]] || fail "No hosting.ftp.user in $CONFIG"
 
 ok "Environment OK (graph: $LOGSEQ_GRAPH)"
 
@@ -84,7 +81,6 @@ python3 "$SCRIPT_DIR/logseq_to_hugo.py" \
     --graph  "$LOGSEQ_GRAPH" \
     --output "$HUGO_CONTENT" \
     --config "$CONFIG" \
-    --site   "$SITE_YAML" \
     --clean
 
 ok "Export done"

@@ -15,8 +15,7 @@ Logseq page properties (v0.5 model — 3 properties):
     lang::   language code (fr, en, zh-tw)
 
 Two configuration files:
-    --config  Engine config (graph_path, theme, colors) — committed, shared.
-    --site    Personal site config (languages, hugo, hosting) — private, in Logseq graph.
+    --config  Engine config (graph_path, theme, colors, hosting, hugo, languages) — gitignored.
 
 Supported Logseq syntax:
     [[Page]]                          → plain text
@@ -103,6 +102,8 @@ def load_config(config_path):
         'colors':               {},
         'color_vars':           {},
         'languages':            {},
+        'hugo':                 {},
+        'hosting':              {},
         'journal_articles':     False,
     }
     if not config_path:
@@ -125,36 +126,12 @@ def load_config(config_path):
             'colors':    cfg.get('colors', {}),
             'color_vars': cfg.get('color_vars', {}),
             'languages': cfg.get('languages', {}),
+            'hugo':      cfg.get('hugo', {}),
+            'hosting':   cfg.get('hosting', {}),
             'journal_articles': cfg.get('journal_articles', False),
         }
     except Exception as e:
         print(f"  ⚠️  Config not loaded ({e}), using defaults.", file=sys.stderr)
-        return defaults
-
-
-def load_site_config(site_path):
-    """
-    Load personal site configuration from site.yaml (lives in Logseq graph).
-    Returns a dict with 'languages', 'hugo', and 'hosting'.
-    """
-    defaults = {
-        'languages': {},
-        'hugo':      {},
-        'hosting':   {},
-    }
-    if not site_path:
-        return defaults
-    try:
-        import yaml
-        with open(site_path, encoding='utf-8') as f:
-            cfg = yaml.safe_load(f)
-        return {
-            'languages': cfg.get('languages', {}),
-            'hugo':      cfg.get('hugo', {}),
-            'hosting':   cfg.get('hosting', {}),
-        }
-    except Exception as e:
-        print(f"  ⚠️  Site config not loaded ({e}), using defaults.", file=sys.stderr)
         return defaults
 
 
@@ -1109,11 +1086,10 @@ def main():
     parser.add_argument('--graph',  default=None, help='Logseq graph root folder (default: from config.yaml graph_path)')
     parser.add_argument('--output', default=None, help='Hugo content/ folder (default: site/content)')
     parser.add_argument('--config', default=None,  help='Path to config/config.yaml (engine config)')
-    parser.add_argument('--site',   default=None,  help='Path to site.yaml (personal site config)')
     parser.add_argument('--clean',  action='store_true', help='Remove output folder before export')
     args = parser.parse_args()
 
-    # Load engine config (sections, theme, colors — committed, shared)
+    # Load engine config (sections, theme, colors, hosting, hugo, languages)
     cfg            = load_config(args.config)
     valid_types    = cfg['valid_types']
     legacy_sections = cfg['legacy_sections']
@@ -1141,11 +1117,10 @@ def main():
         print(f"❌ Graph folder not found: {graph_dir}", file=sys.stderr)
         sys.exit(1)
 
-    # Load personal site config (languages, hugo, hosting — private)
-    site_cfg   = load_site_config(args.site)
-    languages  = site_cfg['languages']
-    hugo_block = site_cfg['hugo']
-    hosting    = site_cfg['hosting']
+    # Load personal site config (languages, hugo, hosting — from config.yaml)
+    languages  = cfg.get('languages', {})
+    hugo_block = cfg.get('hugo', {})
+    hosting    = cfg.get('hosting', {})
 
     # Load sitemap.md from Logseq graph (overrides sections + generates menus/i18n)
     sitemap_entries = load_sitemap(graph_dir)
@@ -1202,16 +1177,16 @@ def main():
     else:
         print(f"  ℹ️  No assets folder found in {graph_dir}")
 
-    # Generate hugo.yaml from site.yaml hugo: block
-    site_was_loaded = args.site is not None
-    generate_hugo_yaml(hugo_block, hosting, output_dir.parent, site_was_loaded)
+    # Generate hugo.yaml from config.yaml hugo: block
+    config_was_loaded = args.config is not None
+    generate_hugo_yaml(hugo_block, hosting, output_dir.parent, config_was_loaded)
 
     # Generate theme-colors.css from config.yaml colors: and color_vars:
     hugo_static = output_dir.parent / 'static'
     generate_theme_colors_css(colors, color_vars, hugo_static)
 
-    # Generate data/languages.yaml from site.yaml languages:
-    generate_languages_data(languages, output_dir.parent, config_was_loaded=site_was_loaded)
+    # Generate data/languages.yaml from config.yaml languages:
+    generate_languages_data(languages, output_dir.parent, config_was_loaded=config_was_loaded)
 
     # Generate i18n nav labels from sitemap.md
     if sitemap_entries:

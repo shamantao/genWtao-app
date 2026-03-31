@@ -8,8 +8,7 @@
 #   $HOME/Downloads/_tmp/genWtao-preview/
 #
 # Reads:
-#   config/config.yaml  — engine config (committed)
-#   <graph>/site.yaml   — personal site config (in Logseq graph)
+#   config/config.yaml  — engine config (graph path, hosting, hugo, theme, colors)
 set -euo pipefail
 
 # ── Paths ────────────────────────────────────────────────────
@@ -22,7 +21,7 @@ HUGO_CONTENT="$HUGO_PROJECT/content"
 
 PREVIEW_DIR="$HOME/Downloads/_tmp/genWtao-preview"
 
-# ── Locate Logseq graph + site.yaml ─────────────────────
+# ── Locate Logseq graph ──────────────────────────────────────
 if [[ -z "${LOGSEQ_GRAPH:-}" ]]; then
     LOGSEQ_GRAPH=$(python3 -c "
 import yaml, os
@@ -32,7 +31,6 @@ p = c.get('graph_path', '')
 print(os.path.expandvars(os.path.expanduser(p)))
 ")
 fi
-SITE_YAML="$LOGSEQ_GRAPH/site.yaml"
 
 # ── Utility functions ────────────────────────────────────────
 log()  { echo ""; echo "▶ $*"; }
@@ -46,7 +44,6 @@ command -v hugo    >/dev/null 2>&1 || fail "Hugo not installed. Run: brew instal
 command -v python3 >/dev/null 2>&1 || fail "Python3 required"
 
 [[ -d "$LOGSEQ_GRAPH" ]] || fail "Logseq graph not found: $LOGSEQ_GRAPH"
-[[ -f "$SITE_YAML" ]]    || fail "site.yaml not found: $SITE_YAML"
 [[ -d "$HUGO_PROJECT" ]] || fail "Hugo project not found: $HUGO_PROJECT"
 
 ok "Environment OK (graph: $LOGSEQ_GRAPH)"
@@ -58,7 +55,6 @@ python3 "$SCRIPT_DIR/logseq_to_hugo.py" \
     --graph  "$LOGSEQ_GRAPH" \
     --output "$HUGO_CONTENT" \
     --config "$CONFIG" \
-    --site   "$SITE_YAML" \
     --clean
 
 ok "Export done"

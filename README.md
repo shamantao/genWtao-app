@@ -356,7 +356,6 @@ cd genWtao-app
 
 python3 scripts/logseq_to_hugo.py \
   --config config/config.yaml \
-  --site   /path/to/your-logseq-graph/site.yaml \
   --clean
 
 cd site && hugo server
@@ -379,11 +378,10 @@ git submodule update --init --recursive
 # The script will:
 #   - ask for your Logseq graph path
 #   - generate config/config.yaml
-#   - copy site.example.yaml to your graph
 #   - create template pages (sitemap.md, colors.md, widgets.md, 404.md)
 ```
 
-Then edit `site.yaml` in your graph: set your site URL, FTP host, FTP user, languages.
+Then edit `config/config.yaml`: set your hosting URL, FTP host/user, Hugo config, and languages.
 
 ### 2. Create a GitHub Personal Access Token
 
@@ -430,7 +428,6 @@ on:
       - 'pages/**'
       - 'journals/**'
       - 'assets/**'
-      - 'site.yaml'
 
 jobs:
   trigger-deploy:
@@ -477,7 +474,7 @@ Replace `<your-username>/<your-app-repo>` with your actual app repository path.
 
 ### FTP upload failed
 - Check the FTP password in GitHub Secrets
-- Verify `remote_path` in config.yaml
+- Verify `hosting.ftp.remote_path` in config/config.yaml
 
 ---
 
@@ -505,7 +502,6 @@ genWtao-app/                              ← this repository
     └── generate-and-deploy.yml           ← the automated build pipeline
 
 your-logseq-graph/                        ← separate repository (private)
-├── site.yaml                             ← your personal site settings
 ├── pages/
 │   ├── sitemap.md                        ← site structure, menus, contact provider
 │   └── widgets.md                        ← widget definitions

@@ -39,7 +39,6 @@ jobs:
             --graph  genWtao-graph \
             --output genWtao-app/site/content \
             --config genWtao-app/config/config.yaml \
-            --site   genWtao-graph/site.yaml \
             --clean
 
       - name: Setup Hugo
@@ -62,10 +61,10 @@ jobs:
           import sys
           import yaml
 
-          with open('genWtao-graph/site.yaml', encoding='utf-8') as handle:
-              site = yaml.safe_load(handle) or {}
+          with open('genWtao-app/config/config.yaml', encoding='utf-8') as handle:
+              cfg = yaml.safe_load(handle) or {}
 
-          hosting = site.get('hosting', {})
+          hosting = cfg.get('hosting', {})
           ftp = hosting.get('ftp', {})
 
           missing = []
@@ -77,7 +76,7 @@ jobs:
             missing.append('hosting.ftp.user')
 
           if missing:
-            print(f"Missing required site.yaml values: {', '.join(missing)}", file=sys.stderr)
+            print(f"Missing required config.yaml values: {', '.join(missing)}", file=sys.stderr)
             sys.exit(1)
 
           print(f"site_url={hosting.get('site_url', '')}")

@@ -1,8 +1,111 @@
-version: 0.7.0
+version: 0.7.1
 
 # Chemin du graph Logseq (supports $HOME and ~ expansion)
 # Set by install.sh — or edit manually
 graph_path: $HOME/path/to/your-logseq-graph
+
+# ──────────────────────────────────────────────────────────────
+# Hosting — where the site is deployed
+# ──────────────────────────────────────────────────────────────
+hosting:
+    site_url: https://your-site.example.com
+    ftp:
+        host: ftp.example.com
+        port: 21
+        user: your_ftp_username
+        remote_path: /htdocs
+
+# ──────────────────────────────────────────────────────────────
+# Languages — display name and flag for the language switcher
+# ──────────────────────────────────────────────────────────────
+languages:
+    display: flag
+    fr:
+        name: "Français"
+        flag: "🇫🇷"
+    en:
+        name: "English"
+        flag: "🇬🇧"
+
+# ──────────────────────────────────────────────────────────────
+# Hugo configuration — generates site/hugo.yaml (gitignored)
+# ──────────────────────────────────────────────────────────────
+hugo:
+    title: "Your Site Title"
+    defaultContentLanguage: "fr"
+    defaultContentLanguageInSubdir: true
+    enableRobotsTXT: true
+    theme: PaperMod
+    languages:
+        fr:
+            weight: 1
+            languageName: "Français"
+            contentDir: content/fr
+            params:
+                homeInfoParams:
+                    Title: "Bonjour 👋"
+                    Content: "Your site description."
+            menu:
+                main:
+                    - name: CV
+                      identifier: fr-cv
+                      url: /fr/cv/
+                      weight: 10
+                    - name: Blog
+                      identifier: fr-blog
+                      url: /fr/blog/
+                      weight: 20
+                    - name: Contact
+                      identifier: fr-contact
+                      url: /fr/contact/
+                      weight: 30
+        en:
+            weight: 2
+            languageName: "English"
+            contentDir: content/en
+            params:
+                homeInfoParams:
+                    Title: "Hello 👋"
+                    Content: "Your site description."
+            menu:
+                main:
+                    - name: CV
+                      identifier: en-cv
+                      url: /en/cv/
+                      weight: 10
+                    - name: Blog
+                      identifier: en-blog
+                      url: /en/blog/
+                      weight: 20
+                    - name: Contact
+                      identifier: en-contact
+                      url: /en/contact/
+                      weight: 30
+    params:
+        author: "Your Name"
+        description: "Site generated from Logseq"
+        contact_form_id: ""
+        env: production
+        ShowReadingTime: false
+        ShowShareButtons: false
+        ShowPostNavLinks: true
+        ShowBreadCrumbs: false
+        ShowCodeCopyButtons: false
+        ShowRssButtonInSectionTermList: false
+        ShowTags: true
+        disableScrollToTop: false
+        comments: false
+        hidemeta: false
+        hideSummary: false
+        showtoc: false
+        tocopen: false
+    taxonomies:
+        tag: tags
+        category: categories
+    markup:
+        goldmark:
+            renderer:
+                unsafe: true
 
 # Types valides (les 4 comportements possibles dans type::)
 valid_types:

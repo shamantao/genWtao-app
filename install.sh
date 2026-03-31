@@ -5,8 +5,7 @@
 # What it does:
 #   1. Asks for the Logseq graph path
 #   2. Generates config/config.yaml from config/config.example.yaml
-#   3. Copies site.example.yaml to the graph (if site.yaml doesn't exist)
-#   4. Creates template pages in the graph: sitemap.md, colors.md,
+#   3. Creates template pages in the graph: sitemap.md, colors.md,
 #      widgets.md, 404.md (skips if they already exist)
 # ──────────────────────────────────────────────────────────────
 set -euo pipefail
@@ -83,23 +82,7 @@ else
     echo ""
 fi
 
-# ── 3. Copy site.example.yaml to graph ──────────────────────
-SITE_EXAMPLE="site.example.yaml"
-SITE_TARGET="$GRAPH_EXPANDED/site.yaml"
-
-if [[ -f "$SITE_EXAMPLE" ]]; then
-    if [[ -f "$SITE_TARGET" ]]; then
-        echo "ℹ️  site.yaml already exists in graph — skipped."
-    else
-        cp "$SITE_EXAMPLE" "$SITE_TARGET"
-        echo "✅ site.yaml copied to graph. Edit it with your hosting details."
-    fi
-else
-    echo "⚠️  site.example.yaml not found — skipping site.yaml creation."
-fi
-echo ""
-
-# ── 4. Create template pages in graph ───────────────────────
+# ── 3. Create template pages in graph ───────────────────────
 PAGES_DIR="$GRAPH_EXPANDED/pages"
 
 create_if_missing() {
@@ -179,10 +162,9 @@ echo "────────────────────────�
 echo "🎉 Setup complete!"
 echo ""
 echo "Next steps:"
-echo "  1. Edit $CONFIG_FILE if you need to adjust settings"
-echo "  2. Edit $SITE_TARGET with your hosting details"
-echo "  3. Edit the template pages in $PAGES_DIR"
-echo "  4. On GitHub: set repository variable GRAPH_REPO = owner/your-graph-repo"
-echo "  5. On GitHub: set secrets GH_TOKEN, FTP_PASSWORD, CONTACT_FORM_ID"
-echo "  6. Run: python3 scripts/logseq_to_hugo.py --graph <graph> --output site/content --config $CONFIG_FILE --site <graph>/site.yaml"
+echo "  1. Edit $CONFIG_FILE: set your hosting URL, FTP host/user, Hugo config, languages"
+echo "  2. Edit the template pages in $PAGES_DIR"
+echo "  3. On GitHub: set repository variable GRAPH_REPO = owner/your-graph-repo"
+echo "  4. On GitHub: set secrets GH_TOKEN, FTP_PASSWORD, CONTACT_FORM_ID"
+echo "  5. Run: python3 scripts/logseq_to_hugo.py --config $CONFIG_FILE --clean"
 echo ""
