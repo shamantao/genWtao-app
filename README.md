@@ -19,6 +19,7 @@ Theme: [PaperMod](https://github.com/adityatelange/hugo-PaperMod) · License: [M
 9. [Initial setup](#initial-setup)
 10. [Troubleshooting](#troubleshooting)
 11. [Advanced — project layout & theme portability](#advanced--project-layout--theme-portability)
+12. [Tips & tricks](#tips--tricks) — future dates, video embeds, journal structure
 
 ---
 
@@ -64,6 +65,9 @@ Every published page needs a small **properties block** at the top — 3 lines.
 | `date::` | **Required for articles** | `date:: 2026-03-28` |
 | `description::` | SEO summary | `description:: 10 years of experience` |
 | `toc::` | Show table of contents | `toc:: true` |
+| `public::` | Hide a page from the site | `public:: false` |
+| `draft::` | Same as `public:: false` (Hugo convention) | `draft:: true` |
+| `translationKey::` | Link translations manually | `translationKey:: my-article` |
 
 ### Examples
 
@@ -96,9 +100,11 @@ lang:: en
 ### Good to know
 
 - **No `public:: true` needed** — a page is published when it has a `type::`. No `type::` = not published.
+- **To hide a page:** add `public:: false` or `draft:: true` on any page that has `type::`. The page will be skipped during generation (not exported, not indexed for link resolution).
 - **The filename is the title** by default. You can override it with `title::` if needed.
 - **`slug::`** becomes the URL. Use only lowercase letters, numbers, and hyphens.
 - **`date::`** is required for articles (controls the order). For other pages it's filled automatically.
+- **Future dates:** Hugo does not publish articles with a future `date::` in production builds. They are visible in local preview (`hugo server`) but hidden on the live site until the date arrives.
 
 ### Global properties guide (quick cookbook)
 
@@ -172,7 +178,19 @@ menu:: blog
 # no type::
 ```
 
-Result: not published.
+Result: not published (no `type::` = ignored).
+
+#### 6) Temporarily unpublish a page
+
+```
+type:: article
+menu:: blog
+lang:: fr
+date:: 2026-04-01
+public:: false
+```
+
+Result: page has `type::` but is explicitly excluded. Equivalent: `draft:: true`.
 
 ### Journal articles (optional)
 
@@ -548,6 +566,8 @@ Replace `<your-username>/<your-app-repo>` with your actual app repository path.
 ### My page doesn't appear on the site
 - Check that the page has `type::` defined (no type = not published)
 - Check that `menu::` matches a section in sitemap.md
+- Check for `public:: false` or `draft:: true` — these explicitly hide the page
+- For **journal articles**: properties must be at the first indentation level (one tab under the title bullet). Properties nested under a heading or sub-bullet are not detected.
 
 ### The language flags are missing
 - For pages/collections/forms: all translations of the same section automatically share a translationKey (= `menu::` value). Just make sure each language version has the same `menu::`.
@@ -565,6 +585,11 @@ Replace `<your-username>/<your-app-repo>` with your actual app repository path.
 ### FTP upload failed
 - Check the FTP password in GitHub Secrets
 - Verify `hosting.ftp.remote_path` in your graph's `config.yaml`
+
+### A video embed makes an article disappear
+- Use `{{video url}}` syntax, not `{{html url}}` (not supported yet)
+- Supported video syntax: `{{video https://...}}`, `{{embed https://...}}`, `{{youtube https://...}}`
+- Any unrecognized `{{...}}` in content can cause Hugo to crash silently on that page
 
 ---
 
@@ -616,6 +641,70 @@ The project separates your content from the visual theme. If you want to switch 
 - [Hugo documentation](https://gohugo.io/documentation/)
 - [GitHub Actions](https://docs.github.com/en/actions)
 - Contact form providers: [Formspree](https://formspree.io) · [Web3Forms](https://web3forms.com) · [FormSubmit](https://formsubmit.co) · [Getform](https://getform.io) · [Fabform](https://fabform.io)
+
+---
+
+## Tips & tricks
+
+### Scheduled publishing (future dates)
+
+If you set `date:: 2026-05-01` on an article, Hugo will **not** include it in production builds (because `buildFuture` defaults to `false`). The article is visible in local preview (`hugo server`) but hidden on the live site.
+
+**Important:** Hugo generates a static site. There is no server checking dates in real time. The article will **not** appear automatically on May 1st — you need a new build at or after that date.
+
+**Option 1 — manual:** push a change or click "Run workflow" in GitHub Actions when you're ready.
+
+**Option 2 — daily cron:** add a scheduled trigger to your GitHub Actions workflow so the site rebuilds every day at midnight:
+
+```yaml
+on:
+  schedule:
+    - cron: '0 0 * * *'   # every day at 00:00 UTC
+```
+
+Any articles whose `date::` has passed will then appear automatically on the next daily build.
+
+### Embedding videos (Odysee, YouTube…)
+
+Use `{{video url}}` to embed a video from any supported platform:
+
+```
+{{video https://odysee.com/@user/video-slug}}
+{{video https://www.youtube.com/watch?v=dQw4w9WgXcQ}}
+```
+
+The script auto-detects the platform and generates the right embed (iframe, Hugo shortcode, etc.).
+
+**What works in Logseq:**
+
+| Syntax | Logseq rendering | genWtao conversion | Hugo |
+|--------|------------------|--------------------|------|
+| `{{video url}}` | Renders the embed | Converts to iframe/shortcode | Works |
+| `{{html url}}` | Highlighted placeholder (not rendered) | **Passes through unchanged** | **Breaks the page silently** |
+| `{{embed url}}` | Line **disappears** in Logseq | Would be converted, but content is lost in Logseq | Unreliable |
+
+**Recommendation:** always use `{{video url}}` for media embeds. It's the only syntax that works correctly in both Logseq and the generated site.
+
+### Journal article structure
+
+When writing articles in daily journals, properties **must** be at the first indentation level (one tab) under the title bullet:
+
+```
+✅ Correct:
+- [[My Article Title]]
+	- type:: article
+	  menu:: blog
+	  lang:: en
+	- First paragraph of content.
+
+❌ Wrong — properties under a heading (two levels deep):
+- [[My Article Title]]
+	- # Some heading
+		- type:: article
+		  lang:: en
+```
+
+In the wrong structure, the script cannot find the `type::` property and the article is silently skipped.
 
 ---
 

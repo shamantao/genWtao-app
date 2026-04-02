@@ -13,6 +13,7 @@ from logseq_to_hugo import (
     build_page_index,
     build_front_matter,
     parse_logseq_properties,
+    process_file,
     resolve_props,
     DEFAULT_INTERNAL_KEYS,
     DEFAULT_SECTIONS,
@@ -314,6 +315,82 @@ class TestDateNormalisation(unittest.TestCase):
     def test_partial_year_normalised(self):
         fm = self._fm('2011')
         self.assertIn('date: 2011-01-01', fm)
+
+
+# ──────────────────────────────────────────────
+# Opt-out: public:: false / draft:: true
+# ──────────────────────────────────────────────
+
+class TestPublishOptOut(unittest.TestCase):
+    """Pages with public:: false or draft:: true must not be published."""
+
+    SECTIONS_MAP = {'blog': 'blog', 'curious': 'curious'}
+
+    def _run(self, text):
+        import tempfile, os
+        with tempfile.TemporaryDirectory() as tmp:
+            out = os.path.join(tmp, 'content')
+            os.makedirs(out)
+            return process_file(
+                'test.md', out, self.SECTIONS_MAP, DEFAULT_INTERNAL_KEYS,
+                text=text, collection_types={'blog', 'curious'},
+            )
+
+    def test_public_false_skips_page(self):
+        text = 'type:: article\nmenu:: blog\nlang:: fr\ndate:: 2026-04-01\npublic:: false\n\nContent here.'
+        result, _ = self._run(text)
+        self.assertIsNone(result)
+
+    def test_draft_true_skips_page(self):
+        text = 'type:: article\nmenu:: blog\nlang:: fr\ndate:: 2026-04-01\ndraft:: true\n\nContent here.'
+        result, _ = self._run(text)
+        self.assertIsNone(result)
+
+    def test_public_true_publishes(self):
+        text = 'type:: article\nmenu:: blog\nlang:: fr\ndate:: 2026-04-01\npublic:: true\n\nContent here.'
+        result, _ = self._run(text)
+        self.assertIsNotNone(result)
+
+    def test_no_opt_out_publishes(self):
+        text = 'type:: article\nmenu:: blog\nlang:: fr\ndate:: 2026-04-01\n\nContent here.'
+        result, _ = self._run(text)
+        self.assertIsNotNone(result)
+
+
+# ──────────────────────────────────────────────
+# Safety net: unknown {{...}} macros
+# ──────────────────────────────────────────────
+
+class TestUnknownMacroEscape(unittest.TestCase):
+    """Unrecognised {{...}} macros must be commented out, not left raw for Hugo."""
+
+    def test_html_macro_escaped(self):
+        """{{html url}} is not a recognised keyword → should become an HTML comment."""
+        text = 'type:: page\nmenu:: cv\nlang:: fr\n\n- {{html https://odysee.com/@foo/bar}}'
+        result = convert_content(text, DEFAULT_INTERNAL_KEYS, lang='fr')
+        self.assertIn('<!-- {{html https://odysee.com/@foo/bar}} -->', result)
+        # Must not appear as bare macro (outside HTML comment)
+        self.assertNotIn('\n{{html', result)
+
+    def test_video_macro_not_escaped(self):
+        """{{video url}} is recognised → must NOT be commented out."""
+        text = 'type:: page\nmenu:: cv\nlang:: fr\n\n- {{video https://odysee.com/@foo/bar}}'
+        result = convert_content(text, DEFAULT_INTERNAL_KEYS, lang='fr')
+        self.assertNotIn('<!--', result)
+        self.assertIn('iframe', result)
+
+    def test_hugo_shortcode_not_escaped(self):
+        """Hugo shortcodes {{< youtube ID >}} must survive untouched."""
+        text = 'type:: page\nmenu:: cv\nlang:: fr\n\n- {{video https://youtube.com/watch?v=abc123}}'
+        result = convert_content(text, DEFAULT_INTERNAL_KEYS, lang='fr')
+        self.assertIn('{{< youtube abc123 >}}', result)
+        self.assertNotIn('<!--', result)
+
+    def test_arbitrary_unknown_macro_escaped(self):
+        """Any random {{something ...}} should be safely escaped."""
+        text = 'type:: page\nmenu:: cv\nlang:: fr\n\n- {{renderer :todomaster}}'
+        result = convert_content(text, DEFAULT_INTERNAL_KEYS, lang='fr')
+        self.assertIn('<!-- {{renderer :todomaster}} -->', result)
 
 
 if __name__ == '__main__':

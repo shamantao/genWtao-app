@@ -28,6 +28,7 @@ Supported Logseq syntax:
     ../assets/img.ext                 → /assets/img.ext
     ![alt](path){:height H, :width W} → <img src="path" width="W">
     {{video|embed https://...}}        → platform embed (YouTube, Odysee, Maps, Mastodon, Bluesky, PDF)
+    {{unknown ...}}                    → <!-- commented out --> (safety net against Hugo shortcode crash)
     #+BEGIN_NOTE ... #+END_NOTE       → emoji-styled blockquote
     collapsed:: / id::                → removed (Logseq internal)
     logo:: ![]()                      → key removed, image value kept
@@ -936,6 +937,16 @@ def convert_content(text, internal_keys, lang='fr', widgets=None, page_index=Non
     # widgets (e.g. hex colours like #40DCA5) is not mangled by the
     # Logseq #tag → link conversion.
     result = apply_widgets(result, widgets)
+
+    # Safety net: escape any remaining {{...}} that are NOT Hugo shortcodes
+    # (shortcodes contain < or >: {{< youtube ID >}}).  Unrecognised macros
+    # left as-is would make Hugo silently drop the entire page.
+    def _escape_unknown_macro(m):
+        raw = m.group(0)
+        print(f'  ⚠️  Unknown macro escaped: {raw}')
+        return f'<!-- {raw} -->'
+    result = re.sub(r'\{\{(?![<>])([^{}]*)\}\}', _escape_unknown_macro, result)
+
     return result
 
 
@@ -1239,6 +1250,10 @@ def build_page_index(pages_dir, sections_map, valid_types=None, legacy_sections=
         props = parse_logseq_properties(text)
         if not props.get('type', '').strip():
             continue
+        if props.get('public', '').strip().lower() == 'false':
+            continue
+        if props.get('draft', '').strip().lower() == 'true':
+            continue
         resolve_props(props, md_file, sections_map, _valid, _legacy)
         page_name = md_file.stem
         lang    = props.get('lang', 'fr').lower()
@@ -1259,6 +1274,10 @@ def build_page_index(pages_dir, sections_map, valid_types=None, legacy_sections=
             for page_text, source_label in extract_journal_blocks(journal_file):
                 props = parse_logseq_properties(page_text)
                 if not props.get('type', '').strip():
+                    continue
+                if props.get('public', '').strip().lower() == 'false':
+                    continue
+                if props.get('draft', '').strip().lower() == 'true':
                     continue
                 resolve_props(props, journal_file, sections_map, _valid, _legacy)
                 title = props.get('_title', journal_file.stem)
@@ -1290,6 +1309,12 @@ def process_file(src_path, output_dir, sections_map, internal_keys, theme_params
 
     # v0.5: a page is publishable when type:: is defined (replaces public:: true)
     if not props.get('type', '').strip():
+        return None, []
+
+    # Explicit opt-out: public:: false or draft:: true
+    if props.get('public', '').strip().lower() == 'false':
+        return None, []
+    if props.get('draft', '').strip().lower() == 'true':
         return None, []
 
     _valid  = valid_types or VALID_TYPES
