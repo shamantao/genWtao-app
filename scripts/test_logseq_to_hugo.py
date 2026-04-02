@@ -1,0 +1,284 @@
+#!/usr/bin/env python3
+"""Unit tests for logseq_to_hugo.py — EPIC 0.9.0 (Logseq advanced syntax)."""
+
+import unittest
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from logseq_to_hugo import (
+    apply_inline_conversions,
+    extract_tags,
+    convert_content,
+    build_page_index,
+    parse_logseq_properties,
+    resolve_props,
+    DEFAULT_INTERNAL_KEYS,
+    DEFAULT_SECTIONS,
+    VALID_TYPES,
+    _resolve_page_link,
+)
+
+# ──────────────────────────────────────────────
+# Shared fixtures
+# ──────────────────────────────────────────────
+
+SAMPLE_PAGE_INDEX = {
+    'Contact': {'lang': 'fr', 'section': 'contact', 'slug': 'contact'},
+    'Contact me': {'lang': 'en', 'section': 'contact', 'slug': 'contact-me'},
+    'Mes Projets': {'lang': 'fr', 'section': 'project', 'slug': 'mes-projets'},
+    'Home-fr': {'lang': 'fr', 'section': '', 'slug': 'accueil---philippe-bertieri'},
+    'Les Thés Taiwanais 臺灣🇹🇼': {'lang': 'fr', 'section': 'curious', 'slug': 'les-th-s-taiwanais-------'},
+}
+
+
+# ──────────────────────────────────────────────
+# US-1: Footnotes + ==highlight==
+# ──────────────────────────────────────────────
+
+class TestFootnotes(unittest.TestCase):
+    """US-1: Footnote references and definitions → HTML anchors."""
+
+    def test_footnote_ref_becomes_clickable_sup(self):
+        line = 'Camellia Sinensis[^1] est une plante.'
+        result = apply_inline_conversions(line, 'fr')
+        self.assertIn('<sup><a href="#fn-1">1</a></sup>', result)
+        self.assertNotIn('[^1]', result)
+
+    def test_footnote_def_becomes_span_anchor(self):
+        line = '[^1]: ***Camellia sinensis***'
+        result = apply_inline_conversions(line, 'fr')
+        self.assertIn('<span id="fn-1"></span>', result)
+        self.assertIn('***Camellia sinensis***', result)
+        self.assertNotIn('[^1]:', result)
+
+    def test_footnote_def_in_bullet(self):
+        """Footnote definition inside a Logseq bullet preserves content."""
+        text = "type:: article\nlang:: fr\nmenu:: curious\n\n- texte[^1]\n\t- [^1]: ma note"
+        result = convert_content(text, DEFAULT_INTERNAL_KEYS, lang='fr')
+        self.assertIn('<sup><a href="#fn-1">1</a></sup>', result)
+        self.assertIn('<span id="fn-1"></span>', result)
+        self.assertIn('ma note', result)
+
+    def test_multiple_footnotes(self):
+        line = 'premier[^1] et second[^2]'
+        result = apply_inline_conversions(line, 'fr')
+        self.assertIn('<sup><a href="#fn-1">1</a></sup>', result)
+        self.assertIn('<sup><a href="#fn-2">2</a></sup>', result)
+
+    def test_footnote_sub_bullets_preserved(self):
+        """Sub-bullets after a footnote definition remain intact."""
+        text = (
+            "type:: article\nlang:: fr\nmenu:: curious\n\n"
+            "- texte[^1]\n"
+            "\t- [^1]: plante\n"
+            "\t\t- sous-espèce sinensis\n"
+            "\t\t- sous-espèce assamica"
+        )
+        result = convert_content(text, DEFAULT_INTERNAL_KEYS, lang='fr')
+        self.assertIn('sous-espèce sinensis', result)
+        self.assertIn('sous-espèce assamica', result)
+
+
+class TestHighlight(unittest.TestCase):
+    """US-1: ==text== and ^^text^^ both produce <mark>."""
+
+    def test_double_equals_highlight(self):
+        line = 'ceci est ==important== dans le texte'
+        result = apply_inline_conversions(line, 'fr')
+        self.assertEqual(result, 'ceci est <mark>important</mark> dans le texte')
+
+    def test_caret_highlight_unchanged(self):
+        """Regression: ^^text^^ still works."""
+        line = 'ceci est ^^important^^ dans le texte'
+        result = apply_inline_conversions(line, 'fr')
+        self.assertEqual(result, 'ceci est <mark>important</mark> dans le texte')
+
+    def test_mixed_highlights(self):
+        line = '==first== and ^^second^^'
+        result = apply_inline_conversions(line, 'fr')
+        self.assertIn('<mark>first</mark>', result)
+        self.assertIn('<mark>second</mark>', result)
+
+
+# ──────────────────────────────────────────────
+# US-2: [[Page]] → resolved links
+# ──────────────────────────────────────────────
+
+class TestPageLinks(unittest.TestCase):
+    """US-2: [[Page Name]] resolves to site URL when published."""
+
+    def test_published_page_becomes_link(self):
+        line = 'Voir la page [[Contact]]'
+        result = apply_inline_conversions(line, 'fr', page_index=SAMPLE_PAGE_INDEX)
+        self.assertIn('[Contact](/fr/contact/contact/)', result)
+
+    def test_unpublished_page_becomes_plain_text(self):
+        line = 'Voir la page [[Page inexistante]]'
+        result = apply_inline_conversions(line, 'fr', page_index=SAMPLE_PAGE_INDEX)
+        self.assertIn('Page inexistante', result)
+        self.assertNotIn('[[', result)
+        self.assertNotIn('](', result)
+
+    def test_page_link_with_section(self):
+        line = 'Mes [[Mes Projets]] sont ici'
+        result = apply_inline_conversions(line, 'fr', page_index=SAMPLE_PAGE_INDEX)
+        self.assertIn('[Mes Projets](/fr/project/mes-projets/)', result)
+
+    def test_page_link_different_lang(self):
+        """[[Contact me]] (en) resolves to English URL."""
+        line = 'Go to [[Contact me]]'
+        result = apply_inline_conversions(line, 'en', page_index=SAMPLE_PAGE_INDEX)
+        self.assertIn('[Contact me](/en/contact/contact-me/)', result)
+
+    def test_page_link_no_index_fallback_plain(self):
+        """Without page_index, [[Page]] falls back to plain text."""
+        line = 'Voir [[Contact]]'
+        result = apply_inline_conversions(line, 'fr', page_index=None)
+        self.assertEqual(result, 'Voir Contact')
+
+    def test_page_link_root_section(self):
+        """Page with empty section → /lang/slug/."""
+        line = 'Retour à [[Home-fr]]'
+        result = apply_inline_conversions(line, 'fr', page_index=SAMPLE_PAGE_INDEX)
+        self.assertIn('/fr/accueil---philippe-bertieri/', result)
+
+    def test_resolve_page_link_helper(self):
+        url = _resolve_page_link('Contact', SAMPLE_PAGE_INDEX)
+        self.assertEqual(url, '/fr/contact/contact/')
+
+    def test_resolve_page_link_not_found(self):
+        url = _resolve_page_link('Nope', SAMPLE_PAGE_INDEX)
+        self.assertIsNone(url)
+
+
+class TestBuildPageIndex(unittest.TestCase):
+    """US-2: build_page_index scans pages/ and builds the index."""
+
+    def test_index_from_temp_pages(self, tmp_dir=None):
+        """Build index from a temp directory with sample pages."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pages = Path(tmpdir) / 'pages'
+            pages.mkdir()
+            (pages / 'MonCV.md').write_text(
+                'type:: page\nlang:: fr\nmenu:: cv\n\n- contenu', encoding='utf-8'
+            )
+            (pages / 'NoType.md').write_text(
+                'lang:: fr\n\n- pas publié', encoding='utf-8'
+            )
+            sections_map = {'cv': 'cv', 'blog': 'blog'}
+            index = build_page_index(pages, sections_map)
+            self.assertIn('MonCV', index)
+            self.assertEqual(index['MonCV']['lang'], 'fr')
+            self.assertEqual(index['MonCV']['section'], 'cv')
+            self.assertNotIn('NoType', index)
+
+
+# ──────────────────────────────────────────────
+# US-3: #[[Tag Name]] → taxonomy link
+# ──────────────────────────────────────────────
+
+class TestBracketedTags(unittest.TestCase):
+    """US-3: #[[Tag with spaces]] → taxonomy link + front matter."""
+
+    def test_bracketed_tag_becomes_link(self):
+        line = 'Voir #[[Mon Tag]] ici'
+        result = apply_inline_conversions(line, 'fr')
+        self.assertIn('[#Mon Tag](/fr/tags/mon-tag/)', result)
+
+    def test_bracketed_tag_in_front_matter(self):
+        text = "type:: article\nlang:: fr\nmenu:: blog\n\n- texte #[[Mon Tag]] ici"
+        tags = extract_tags(text)
+        self.assertIn('Mon Tag', tags)
+
+    def test_simple_tag_still_works(self):
+        """Regression: #Tag (no brackets) still works."""
+        line = 'un #Marketing tag'
+        result = apply_inline_conversions(line, 'fr')
+        self.assertIn('[#Marketing](/fr/tags/marketing/)', result)
+
+    def test_hash_in_url_not_treated_as_tag(self):
+        """#fragment inside a markdown URL must NOT become a tag."""
+        line = '[Terre des Thés](https://www.terre-des-thes.fr/le-theier/#faq-question-123)'
+        result = apply_inline_conversions(line, 'fr')
+        self.assertNotIn('/fr/tags/', result)
+        self.assertIn('https://www.terre-des-thes.fr/le-theier/#faq-question-123', result)
+
+    def test_hash_in_url_not_extracted_as_tag(self):
+        """#fragment in URLs must not appear in extracted tags."""
+        text = "type:: article\nlang:: fr\nmenu:: blog\n\n- [site](https://example.com/#section)"
+        tags = extract_tags(text)
+        self.assertNotIn('section', tags)
+
+    def test_bracketed_tag_not_treated_as_page_link(self):
+        """#[[Tag]] must NOT be resolved as a page link even if a page named 'Tag' exists."""
+        page_index = {'Mon Tag': {'lang': 'fr', 'section': 'blog', 'slug': 'mon-tag'}}
+        line = '#[[Mon Tag]]'
+        result = apply_inline_conversions(line, 'fr', page_index=page_index)
+        # Should be a tag link, not a page link
+        self.assertIn('/fr/tags/mon-tag/', result)
+        self.assertNotIn('/fr/blog/mon-tag/', result)
+
+
+# ──────────────────────────────────────────────
+# US-4: [Custom text]([[Page]]) → resolved link
+# ──────────────────────────────────────────────
+
+class TestCustomTextLinks(unittest.TestCase):
+    """US-4: [display text]([[Page Name]]) → resolved link or plain text."""
+
+    def test_custom_text_resolved(self):
+        line = 'Voir [mon CV]([[Mes Projets]])'
+        result = apply_inline_conversions(line, 'fr', page_index=SAMPLE_PAGE_INDEX)
+        self.assertIn('[mon CV](/fr/project/mes-projets/)', result)
+
+    def test_custom_text_unpublished_fallback(self):
+        line = 'Voir [lien]([[Inexistant]])'
+        result = apply_inline_conversions(line, 'fr', page_index=SAMPLE_PAGE_INDEX)
+        self.assertEqual(result, 'Voir lien')
+        self.assertNotIn('[[', result)
+
+    def test_standard_markdown_link_untouched(self):
+        """Standard [text](https://...) must NOT be affected."""
+        line = 'Voir [Logseq](https://logseq.com)'
+        result = apply_inline_conversions(line, 'fr', page_index=SAMPLE_PAGE_INDEX)
+        self.assertEqual(result, 'Voir [Logseq](https://logseq.com)')
+
+
+# ──────────────────────────────────────────────
+# Integration: full convert_content with all features
+# ──────────────────────────────────────────────
+
+class TestConvertContentIntegration(unittest.TestCase):
+    """Integration tests combining multiple v0.9 features."""
+
+    def test_full_article_with_footnotes_and_links(self):
+        text = (
+            "type:: article\nlang:: fr\nmenu:: curious\n\n"
+            "- Le thé *Camellia Sinensis*[^1] est populaire.\n"
+            "- Voir aussi [[Mes Projets]] et #[[Mon Tag]]\n"
+            "- ==important== et ^^aussi^^.\n"
+            "\t- [^1]: Plante originaire de Chine\n"
+            "\t\t- sous-espèce sinensis"
+        )
+        result = convert_content(
+            text, DEFAULT_INTERNAL_KEYS, lang='fr',
+            page_index=SAMPLE_PAGE_INDEX
+        )
+        # Footnotes
+        self.assertIn('<sup><a href="#fn-1">1</a></sup>', result)
+        self.assertIn('<span id="fn-1"></span>', result)
+        self.assertIn('Plante originaire de Chine', result)
+        self.assertIn('sous-espèce sinensis', result)
+        # Page link
+        self.assertIn('[Mes Projets](/fr/project/mes-projets/)', result)
+        # Bracketed tag
+        self.assertIn('/fr/tags/mon-tag/', result)
+        # Highlights
+        self.assertIn('<mark>important</mark>', result)
+        self.assertIn('<mark>aussi</mark>', result)
+
+
+if __name__ == '__main__':
+    unittest.main()
