@@ -11,6 +11,7 @@ from logseq_to_hugo import (
     extract_tags,
     convert_content,
     build_page_index,
+    build_front_matter,
     parse_logseq_properties,
     resolve_props,
     DEFAULT_INTERNAL_KEYS,
@@ -278,6 +279,35 @@ class TestConvertContentIntegration(unittest.TestCase):
         # Highlights
         self.assertIn('<mark>important</mark>', result)
         self.assertIn('<mark>aussi</mark>', result)
+
+
+# ──────────────────────────────────────────────
+# Logseq date normalisation in front matter
+# ──────────────────────────────────────────────
+
+class TestDateNormalisation(unittest.TestCase):
+    """Logseq date links [[Mon Day, Year]] must become ISO dates."""
+
+    def _fm(self, date_val):
+        props = {'_slug': 'test', '_page_type': 'article', '_translationkey': 'test',
+                 'date': date_val, 'lang': 'fr', '_section': 'blog'}
+        return build_front_matter(props, 'Test', tags=[], theme_params={})
+
+    def test_logseq_date_link_normalised(self):
+        fm = self._fm('[[Apr 2nd, 2026]]')
+        self.assertIn('date: 2026-04-02', fm)
+
+    def test_logseq_date_link_march(self):
+        fm = self._fm('[[Mar 31st, 2026]]')
+        self.assertIn('date: 2026-03-31', fm)
+
+    def test_iso_date_unchanged(self):
+        fm = self._fm('2026-04-02')
+        self.assertIn('date: 2026-04-02', fm)
+
+    def test_partial_year_normalised(self):
+        fm = self._fm('2011')
+        self.assertIn('date: 2011-01-01', fm)
 
 
 if __name__ == '__main__':

@@ -1007,6 +1007,20 @@ def build_front_matter(props, source_file, tags=None, theme_params=None):
     ptype   = props.get('_page_type', 'page')  # behavioural type
 
     date  = props.get('date', TODAY)
+    # Normalise Logseq date links: [[Apr 2nd, 2026]] → 2026-04-02
+    if '[[' in date:
+        raw_date = date.strip('[]')
+        cleaned = re.sub(r'(\d+)(st|nd|rd|th)', r'\1', raw_date)
+        try:
+            from dateutil.parser import parse as _date_parse
+            date = _date_parse(cleaned).strftime('%Y-%m-%d')
+        except ImportError:
+            try:
+                date = datetime.strptime(cleaned, '%b %d, %Y').strftime('%Y-%m-%d')
+            except ValueError:
+                pass
+        except Exception:
+            pass
     # Normalise partial dates: "2011" → "2011-01-01", "2011-03" → "2011-03-01"
     if re.match(r'^\d{4}$', date):
         date = f'{date}-01-01'
