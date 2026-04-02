@@ -18,9 +18,13 @@ Two configuration files:
     --config  Engine config (graph_path, theme, colors, hosting, hugo, languages) — gitignored.
 
 Supported Logseq syntax:
-    [[Page]]                          → plain text
+    [[Page]]                          → [Page](/lang/section/slug/) if published, plain text otherwise
+    [Custom]([[Page]])                → [Custom](/lang/section/slug/) if published, plain text otherwise
     #Tag                              → [#Tag](/lang/tags/tag/) + tags in front matter
+    #[[Tag Name]]                     → [#Tag Name](/lang/tags/tag-name/) + tags in front matter
+    [^n] / [^n]: text                 → <sup><a href="#fn-n">n</a></sup> / <span id="fn-n"> in-place
     ^^text^^                          → <mark>text</mark>
+    ==text==                          → <mark>text</mark>
     ../assets/img.ext                 → /assets/img.ext
     ![alt](path){:height H, :width W} → <img src="path" width="W">
     {{video|embed https://...}}        → platform embed (YouTube, Odysee, Maps, Mastodon, Bluesky, PDF)
@@ -696,13 +700,38 @@ def _responsive_iframe(src, padding='56.25%', fixed_height=None):
 
 
 def extract_tags(text):
-    """Extract all #Tags from content body (for Hugo front matter)."""
+    """Extract all #Tags and #[[Tag Name]] from content body (for Hugo front matter)."""
     # Skip the properties block at the top
     body = re.split(r'\n(?![\w_-]+::)', text, maxsplit=1)[-1]
-    return sorted(set(re.findall(r'(?<![#\w])#(\w[\w/-]*)', body)))
+    # Remove markdown link URLs to avoid false positives (e.g. https://.../#fragment)
+    body_no_urls = re.sub(r'\]\([^)]+\)', ']()', body)
+    # Simple #Tag
+    simple = re.findall(r'(?<![#\w\["])#(\w[\w/-]*)', body_no_urls)
+    # #[[Tag Name]] with spaces
+    bracketed = re.findall(r'#\[\[([^\]]+)\]\]', body_no_urls)
+    return sorted(set(simple + bracketed))
 
 
-def apply_inline_conversions(line, lang):
+def _resolve_page_link(page_name, page_index):
+    """Resolve a Logseq [[Page Name]] to a Hugo URL using the page index.
+
+    Returns the URL string '/lang/section/slug/' if the page is published,
+    or None if the page is not in the index (not published).
+    """
+    if not page_index:
+        return None
+    entry = page_index.get(page_name)
+    if not entry:
+        return None
+    lang = entry['lang']
+    section = entry['section']
+    slug = entry['slug']
+    if section:
+        return f'/{lang}/{section}/{slug}/'
+    return f'/{lang}/{slug}/'
+
+
+def apply_inline_conversions(line, lang, page_index=None):
     """Apply all inline conversions to a single content line."""
     # Sized images → HTML <img>
     line = re.sub(
@@ -713,14 +742,60 @@ def apply_inline_conversions(line, lang):
     line = re.sub(r'\.\.[\/\\]assets[\/\\]', '/assets/', line)
     # Highlight ^^text^^ → <mark>
     line = re.sub(r'\^\^(.+?)\^\^', r'<mark>\1</mark>', line)
-    # [[Page Name]] references → plain text
-    line = re.sub(r'#?\[\[([^\]]+)\]\]', r'\1', line)
-    # #Tags → Hugo taxonomy link
+    # Highlight ==text== → <mark>
+    line = re.sub(r'==(.+?)==', r'<mark>\1</mark>', line)
+    # Footnote references [^n] → clickable anchor (but NOT definitions [^n]:)
     line = re.sub(
-        r'(?<![#\w])#(\w[\w/-]*)',
+        r'\[\^(\w+)\](?!:)',
+        lambda m: f'<sup><a href="#fn-{m.group(1)}">{m.group(1)}</a></sup>',
+        line,
+    )
+    # Footnote definitions [^n]: text → anchor target in-place
+    line = re.sub(
+        r'\[\^(\w+)\]:\s*',
+        lambda m: f'<span id="fn-{m.group(1)}"></span>',
+        line,
+    )
+    # [Custom text]([[Page Name]]) → resolved link or plain text
+    def _replace_custom_link(m):
+        display = m.group(1)
+        page_name = m.group(2)
+        url = _resolve_page_link(page_name, page_index)
+        if url:
+            return f'[{display}]({url})'
+        return display
+    line = re.sub(r'\[([^\]]+)\]\(\[\[([^\]]+)\]\]\)', _replace_custom_link, line)
+    # #[[Tag Name]] → Hugo taxonomy link (must come before [[Page]] handling)
+    def _replace_bracketed_tag(m):
+        tag = m.group(1)
+        slug = re.sub(r'[^\w-]', '-', tag.lower()).strip('-')
+        return f'[#{tag}](/{lang}/tags/{slug}/)'
+    line = re.sub(r'#\[\[([^\]]+)\]\]', _replace_bracketed_tag, line)
+    # [[Page Name]] references → resolved link or plain text
+    def _replace_page_link(m):
+        page_name = m.group(1)
+        url = _resolve_page_link(page_name, page_index)
+        if url:
+            return f'[{page_name}]({url})'
+        return page_name
+    line = re.sub(r'\[\[([^\]]+)\]\]', _replace_page_link, line)
+    # #Tags → Hugo taxonomy link
+    # Protect markdown link URLs from being matched: temporarily replace ](url) sections
+    _link_urls = []
+    def _stash_url(m):
+        _link_urls.append(m.group(1))
+        return f'](\x00LINK{len(_link_urls) - 1}\x00)'
+    line = re.sub(r'\]\(([^)]+)\)', _stash_url, line)
+    # Now apply #Tag conversion safely (no URLs to pollute)
+    line = re.sub(
+        r'(?<![#\w\["])#(\w[\w/-]*)',
         lambda m: f'[#{m.group(1)}](/{lang}/tags/{m.group(1).lower()}/)',
         line,
     )
+    # Restore stashed URLs
+    def _restore_url(m):
+        return f']({_link_urls[int(m.group(1))]})'
+    line = re.sub(r'\]\(\x00LINK(\d+)\x00\)', _restore_url, line)
     return line
 
 
@@ -744,7 +819,7 @@ def parse_logseq_properties(text):
 # LOGSEQ CONTENT → HUGO MARKDOWN CONVERTER
 # ──────────────────────────────────────────────
 
-def convert_content(text, internal_keys, lang='fr', widgets=None):
+def convert_content(text, internal_keys, lang='fr', widgets=None, page_index=None):
     """
     Converts a Logseq page body to Hugo-compatible Markdown/HTML.
 
@@ -756,7 +831,7 @@ def convert_content(text, internal_keys, lang='fr', widgets=None):
        a. Skip the properties block at the top
        b. Remove internal metadata (collapsed::, id::)
        c. Logseq bullets → Markdown; inline properties → value or drop
-       d. Inline conversions (images, assets, highlight, refs, tags)
+       d. Inline conversions (images, assets, highlight, footnotes, refs, tags)
     """
     # ── Global multi-line passes ─────────────────────────────────────
     text = convert_admonitions(text)
@@ -803,11 +878,11 @@ def convert_content(text, internal_keys, lang='fr', widgets=None):
                 else:
                     content = val     # Custom key (logo::, cover::...) → keep value only
 
-            content = apply_inline_conversions(content, lang)
+            content = apply_inline_conversions(content, lang, page_index=page_index)
             line    = content if tabs == 0 else ('  ' * (tabs - 1)) + '- ' + content
         else:
             # Non-bullet lines (headings ##, blockquotes >, paragraphs...)
-            line = apply_inline_conversions(line, lang)
+            line = apply_inline_conversions(line, lang, page_index=page_index)
 
         output.append(line)
 
@@ -1046,7 +1121,14 @@ def extract_journal_blocks(journal_file):
             if prop_match and not content_lines:
                 # Properties must come before any content lines
                 props[prop_match.group(1).lower()] = prop_match.group(2).strip()
-            elif line.startswith('\t'):
+                continue
+            # Tab-indented child properties: \t- key:: val or \t  key:: val
+            if not content_lines and line.startswith('\t'):
+                child_prop = re.match(r'^\t[\- ]{0,2}(\w[\w_-]*)::[ \t]*(.*)', line)
+                if child_prop:
+                    props[child_prop.group(1).lower()] = child_prop.group(2).strip()
+                    continue
+            if line.startswith('\t'):
                 # Child content: remove one leading tab
                 content_lines.append(line[1:])
             elif line.strip() == '':
@@ -1061,14 +1143,34 @@ def extract_journal_blocks(journal_file):
         # Auto-set date from journal filename if not explicitly set
         if 'date' not in props:
             props['date'] = journal_date
+        else:
+            # Normalise Logseq date links: [[Mar 31st, 2026]] → 2026-03-31
+            raw_date = props['date'].strip('[]')
+            cleaned = re.sub(r'(\d+)(st|nd|rd|th)', r'\1', raw_date)
+            try:
+                from dateutil.parser import parse as _date_parse
+                props['date'] = _date_parse(cleaned).strftime('%Y-%m-%d')
+            except ImportError:
+                from datetime import datetime as _dt
+                try:
+                    props['date'] = _dt.strptime(cleaned, '%b %d, %Y').strftime('%Y-%m-%d')
+                except ValueError:
+                    props['date'] = journal_date
+            except Exception:
+                props['date'] = journal_date
+
+        # Use first line text as title if no explicit title:: property
+        if first_line_text and 'title' not in props:
+            # Strip Logseq link brackets: [[My Title]] → My Title
+            title = re.sub(r'\[\[([^\]]+)\]\]', r'\1', first_line_text).strip()
+            if title:
+                props['title'] = title
 
         # Reconstruct as page text (properties at top, then content)
         page_lines = []
         for k, v in props.items():
             page_lines.append(f'{k}:: {v}')
         page_lines.append('')  # separator
-        if first_line_text:
-            page_lines.append(f'- {first_line_text}')
         page_lines.extend(content_lines)
 
         page_text = '\n'.join(page_lines)
@@ -1080,12 +1182,59 @@ def extract_journal_blocks(journal_file):
 
 
 # ──────────────────────────────────────────────
+# PAGE INDEX (2-pass link resolution)
+# ──────────────────────────────────────────────
+
+def build_page_index(pages_dir, sections_map, valid_types=None, legacy_sections=None,
+                     journals_dir=None, journal_articles_enabled=False):
+    """Build an index of all publishable pages for [[Page]] link resolution.
+
+    Pass 1: scan all pages/ (and optionally journals/) to collect
+    {page_name: {lang, section, slug}} for every page that has type::.
+
+    Returns a dict keyed by the Logseq page name (= filename without .md).
+    """
+    _valid  = valid_types or VALID_TYPES
+    _legacy = legacy_sections or DEFAULT_SECTIONS
+    index = {}
+
+    # Index pages/
+    for md_file in sorted(pages_dir.glob('*.md')):
+        text = md_file.read_text(encoding='utf-8')
+        props = parse_logseq_properties(text)
+        if not props.get('type', '').strip():
+            continue
+        resolve_props(props, md_file, sections_map, _valid, _legacy)
+        page_name = md_file.stem
+        lang    = props.get('lang', 'fr').lower()
+        section = sections_map.get(props.get('_section', ''), props.get('_section', ''))
+        slug    = props.get('_slug', '')
+        index[page_name] = {'lang': lang, 'section': section, 'slug': slug}
+
+    # Index journal articles
+    if journal_articles_enabled and journals_dir and journals_dir.exists():
+        for journal_file in sorted(journals_dir.glob('*.md')):
+            for page_text, source_label in extract_journal_blocks(journal_file):
+                props = parse_logseq_properties(page_text)
+                if not props.get('type', '').strip():
+                    continue
+                resolve_props(props, journal_file, sections_map, _valid, _legacy)
+                title = props.get('_title', journal_file.stem)
+                lang    = props.get('lang', 'fr').lower()
+                section = sections_map.get(props.get('_section', ''), props.get('_section', ''))
+                slug    = props.get('_slug', '')
+                index[title] = {'lang': lang, 'section': section, 'slug': slug}
+
+    return index
+
+
+# ──────────────────────────────────────────────
 # FILE PROCESSOR
 # ──────────────────────────────────────────────
 
 def process_file(src_path, output_dir, sections_map, internal_keys, theme_params=None,
                   widgets=None, collection_types=None, valid_types=None, legacy_sections=None,
-                  text=None):
+                  text=None, page_index=None):
     if text is None:
         text = Path(src_path).read_text(encoding='utf-8')
     props = parse_logseq_properties(text)
@@ -1101,7 +1250,7 @@ def process_file(src_path, output_dir, sections_map, internal_keys, theme_params
     lang         = props.get('lang', 'fr').lower()
     tags         = extract_tags(text)
     front_matter = build_front_matter(props, src_path, tags=tags or None, theme_params=theme_params)
-    body         = convert_content(text, internal_keys, lang=lang, widgets=widgets)
+    body         = convert_content(text, internal_keys, lang=lang, widgets=widgets, page_index=page_index)
     hugo_content = front_matter + '\n\n' + body
 
     out = output_path(props, output_dir, sections_map, collection_types=collection_types)
@@ -1238,12 +1387,25 @@ def main():
     skipped     = []
     all_warnings = []
 
+    # ── Pass 1: build page index for [[Page]] link resolution ─────────
+    journal_articles_enabled = cfg.get('journal_articles', False)
+    journals_dir = graph_dir / 'journals'
+    page_index = build_page_index(
+        pages_dir, sections_map,
+        valid_types=valid_types, legacy_sections=legacy_sections,
+        journals_dir=journals_dir, journal_articles_enabled=journal_articles_enabled,
+    )
+    if page_index:
+        print(f"🔗 Page index: {len(page_index)} publishable page(s) indexed for link resolution")
+
+    # ── Pass 2: convert and export ────────────────────────────────────
     for md_file in sorted(pages_dir.glob('*.md')):
         result, warnings = process_file(
             md_file, output_dir, sections_map, internal_keys,
             theme_params=theme_params, widgets=widgets,
             collection_types=collection_types,
-            valid_types=valid_types, legacy_sections=legacy_sections)
+            valid_types=valid_types, legacy_sections=legacy_sections,
+            page_index=page_index)
         if result:
             exported.append(result)
             print(f"  ✅ {md_file.name} → {result}")
@@ -1256,7 +1418,6 @@ def main():
 
     # ── Journal articles (optional) ──────────────────────────────────
     journal_exported = []
-    journal_articles_enabled = cfg.get('journal_articles', False)
     if journal_articles_enabled:
         journals_dir = graph_dir / 'journals'
         if journals_dir.exists():
@@ -1269,7 +1430,7 @@ def main():
                         theme_params=theme_params, widgets=widgets,
                         collection_types=collection_types,
                         valid_types=valid_types, legacy_sections=legacy_sections,
-                        text=page_text)
+                        text=page_text, page_index=page_index)
                     if result:
                         # Check slug conflict: pages/ wins over journals/
                         result_slug = Path(result).stem

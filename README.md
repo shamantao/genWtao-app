@@ -109,22 +109,23 @@ You can also write quick articles directly inside your **Logseq daily journal** 
 journal_articles: true    # false by default
 ```
 
-Then in any journal entry, add a top-level bullet with `type:: article`:
+Then in any journal entry, add a top-level bullet with your article title, and set `type:: article` in child properties:
 ```
-- type:: article
-  menu:: blog
-  lang:: fr
-  title:: Découverte de n8n
-  slug:: n8n-discovery
-  description:: Premiers pas avec n8n et Docker
+- [[Découverte de n8n]]
+	- type:: article
+	  menu:: blog
+	  lang:: fr
 	- Premier paragraphe de contenu.
 	- Deuxième paragraphe avec plus de détails.
 		- Un sous-point.
 ```
 
+Title = `Découverte de n8n` (auto-deduced from the bullet text). Slug = `decouverte-de-n8n` (auto-deduced from the title). Date = journal filename.
+
 **Rules:**
 - Only **top-level bullets** (first level `- `) with `type::` are scanned
-- `title::` and `slug::` are **required** (there is no filename to auto-deduce from)
+- `title::` is **auto-deduced** from the bullet text (e.g. `[[My Title]]` → `My Title`), but you can override it
+- `slug::` is **auto-deduced** from the title, but you can override it
 - `date::` is **auto-deduced** from the journal filename (`2026_03_28.md` → `2026-03-28`), but you can override it
 - Everything indented below the bullet = the article content
 - If a page in `pages/` has the same slug, **the page wins** (pages always take priority)
