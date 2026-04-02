@@ -100,6 +100,80 @@ lang:: en
 - **`slug::`** becomes the URL. Use only lowercase letters, numbers, and hyphens.
 - **`date::`** is required for articles (controls the order). For other pages it's filled automatically.
 
+### Global properties guide (quick cookbook)
+
+Use this section as a practical reference for all property combinations.
+
+#### 1) Minimal static page
+
+```
+type:: page
+menu:: cv
+lang:: en
+```
+
+Result: one page in `/en/cv/`, with title/slug auto-deduced.
+
+#### 2) Collection index page
+
+```
+type:: collection
+menu:: blog
+lang:: fr
+title:: Actualités
+```
+
+Result: collection landing page (`_index.md`) for that language and section.
+
+#### 3) Article with explicit date/slug
+
+```
+type:: article
+menu:: blog
+lang:: en
+slug:: release-notes-q2
+date:: 2026-04-02
+description:: Product updates for Q2
+```
+
+Result: article page in `/en/blog/release-notes-q2/`.
+
+#### 4) Multilingual article pair (recommended)
+
+When article titles differ by language, use an explicit shared `translationKey::`.
+
+```
+# French version
+type:: article
+menu:: curious
+lang:: fr
+slug:: guide-the-blanc
+date:: 2026-04-02
+translationKey:: white-tea-guide
+```
+
+```
+# English version
+type:: article
+menu:: curious
+lang:: en
+slug:: white-tea-guide
+date:: 2026-04-02
+translationKey:: white-tea-guide
+```
+
+Result: language switcher links FR ↔ EN on the same article.
+
+#### 5) Hide a page from publishing
+
+```
+lang:: en
+menu:: blog
+# no type::
+```
+
+Result: not published.
+
 ### Journal articles (optional)
 
 You can also write quick articles directly inside your **Logseq daily journal** — no need to create a dedicated page.
@@ -239,6 +313,21 @@ The system automatically links pages that are translations of each other using `
 | `article` | `slug::` value | Articles with the same slug across languages are linked |
 
 **Override:** if you need a custom link, set `translationKey::` explicitly on the page.
+
+### Switcher behavior: exact rules
+
+- If another language version with the same `translationKey` exists, the flag links to that translated page.
+- If no page exists in the target language for that `translationKey`, the flag links to that language home.
+- For `page` / `collection` / `form`, this is usually automatic (shared `menu::`).
+- For `article`, if titles/slugs differ by language, define `translationKey::` explicitly on each language version.
+
+### Article translation best practice
+
+For multilingual articles, prefer this pattern:
+
+- Keep language-specific `title::` and `slug::`.
+- Share one stable `translationKey::` across all languages.
+- Use lowercase letters, numbers, and hyphens for readability (it can be any string technically, but readable keys are easier to maintain).
 
 ### Adding a new language
 
@@ -462,7 +551,7 @@ Replace `<your-username>/<your-app-repo>` with your actual app repository path.
 
 ### The language flags are missing
 - For pages/collections/forms: all translations of the same section automatically share a translationKey (= `menu::` value). Just make sure each language version has the same `menu::`.
-- For articles: all translations should share the same `slug::`.
+- For articles: all translations must share the same `translationKey::` (or the same `slug::` if you rely on auto-deduction).
 - Override: set `translationKey::` explicitly if auto-deduction doesn't work.
 
 ### The contact form redirects to an error page

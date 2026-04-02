@@ -39,6 +39,7 @@ import re
 import sys
 import shutil
 import argparse
+import unicodedata
 from datetime import datetime
 from pathlib import Path
 
@@ -712,6 +713,18 @@ def extract_tags(text):
     return sorted(set(simple + bracketed))
 
 
+def _normalise_page_key(name):
+    """Return a stable key for page link lookups across Unicode variants.
+
+    This makes [[Page]] resolution robust to NFC/NFD differences
+    (e.g. "Thés" vs "The\u0301s") and accidental extra spaces.
+    """
+    if not isinstance(name, str):
+        return ''
+    compact = re.sub(r'\s+', ' ', name).strip()
+    return unicodedata.normalize('NFC', compact)
+
+
 def _resolve_page_link(page_name, page_index):
     """Resolve a Logseq [[Page Name]] to a Hugo URL using the page index.
 
@@ -721,6 +734,14 @@ def _resolve_page_link(page_name, page_index):
     if not page_index:
         return None
     entry = page_index.get(page_name)
+    if not entry:
+        normalized = _normalise_page_key(page_name)
+        entry = page_index.get(normalized)
+    if not entry:
+        entry = page_index.get(page_name.casefold())
+    if not entry:
+        normalized = _normalise_page_key(page_name)
+        entry = page_index.get(normalized.casefold())
     if not entry:
         return None
     lang = entry['lang']
@@ -1223,7 +1244,14 @@ def build_page_index(pages_dir, sections_map, valid_types=None, legacy_sections=
         lang    = props.get('lang', 'fr').lower()
         section = sections_map.get(props.get('_section', ''), props.get('_section', ''))
         slug    = props.get('_slug', '')
-        index[page_name] = {'lang': lang, 'section': section, 'slug': slug}
+        entry = {'lang': lang, 'section': section, 'slug': slug}
+        index[page_name] = entry
+        normalized = _normalise_page_key(page_name)
+        if normalized and normalized not in index:
+            index[normalized] = entry
+        folded = normalized.casefold() if normalized else ''
+        if folded and folded not in index:
+            index[folded] = entry
 
     # Index journal articles
     if journal_articles_enabled and journals_dir and journals_dir.exists():
@@ -1237,7 +1265,14 @@ def build_page_index(pages_dir, sections_map, valid_types=None, legacy_sections=
                 lang    = props.get('lang', 'fr').lower()
                 section = sections_map.get(props.get('_section', ''), props.get('_section', ''))
                 slug    = props.get('_slug', '')
-                index[title] = {'lang': lang, 'section': section, 'slug': slug}
+                entry = {'lang': lang, 'section': section, 'slug': slug}
+                index[title] = entry
+                normalized = _normalise_page_key(title)
+                if normalized and normalized not in index:
+                    index[normalized] = entry
+                folded = normalized.casefold() if normalized else ''
+                if folded and folded not in index:
+                    index[folded] = entry
 
     return index
 
@@ -1347,6 +1382,14 @@ def main():
             print(f'  📚 Collection types (multi-page): {sorted(collection_types)}')
     else:
         print('  ℹ️  No sitemap.md found — using legacy_sections from config.yaml')
+
+    # PaperMod post navigation relies on params.mainSections.
+    # Align it with sitemap collection sections so prev/next works consistently
+    # for all article pages in collection-type sections (blog, curious, ...).
+    if collection_types:
+        resolved_main_sections = sorted({sections_map.get(sec, sec) for sec in collection_types})
+        hugo_block.setdefault('params', {})['mainSections'] = resolved_main_sections
+        print(f'  ℹ️  mainSections for post navigation: {resolved_main_sections}')
 
     # Load widgets.md from Logseq graph
     widgets = load_widgets(graph_dir)

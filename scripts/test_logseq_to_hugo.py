@@ -152,6 +152,12 @@ class TestPageLinks(unittest.TestCase):
         url = _resolve_page_link('Nope', SAMPLE_PAGE_INDEX)
         self.assertIsNone(url)
 
+    def test_page_link_unicode_normalization(self):
+        """[[Page]] resolves even if source uses NFD accents and index key is NFC."""
+        line = 'Lire [[Les The\u0301s Taiwanais 臺灣🇹🇼]]'
+        result = apply_inline_conversions(line, 'fr', page_index=SAMPLE_PAGE_INDEX)
+        self.assertIn('/fr/curious/les-th-s-taiwanais-------/', result)
+
 
 class TestBuildPageIndex(unittest.TestCase):
     """US-2: build_page_index scans pages/ and builds the index."""
