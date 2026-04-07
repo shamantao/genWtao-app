@@ -3,6 +3,8 @@
 
 import unittest
 import sys
+import tempfile
+import os
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -15,6 +17,7 @@ from logseq_to_hugo import (
     parse_logseq_properties,
     process_file,
     resolve_props,
+    load_colors,
     DEFAULT_INTERNAL_KEYS,
     DEFAULT_SECTIONS,
     VALID_TYPES,
@@ -391,6 +394,87 @@ class TestUnknownMacroEscape(unittest.TestCase):
         text = 'type:: page\nmenu:: cv\nlang:: fr\n\n- {{renderer :todomaster}}'
         result = convert_content(text, DEFAULT_INTERNAL_KEYS, lang='fr')
         self.assertIn('<!-- {{renderer :todomaster}} -->', result)
+
+
+# ──────────────────────────────────────────────
+# EPIC-0.10: Colors from colors.md
+# ──────────────────────────────────────────────
+
+class TestLoadColors(unittest.TestCase):
+
+    def _make_graph(self, colors_content=None):
+        """Create a temporary graph dir with an optional pages/colors.md."""
+        tmp = tempfile.mkdtemp()
+        pages = Path(tmp) / 'pages'
+        pages.mkdir()
+        if colors_content is not None:
+            (pages / 'colors.md').write_text(colors_content, encoding='utf-8')
+        return Path(tmp)
+
+    def test_colors_md_absent_returns_none(self):
+        """When colors.md does not exist, load_colors returns (None, None)."""
+        graph = self._make_graph()
+        colors, color_vars = load_colors(graph)
+        self.assertIsNone(colors)
+        self.assertIsNone(color_vars)
+
+    def test_colors_md_parses_light_dark_vars(self):
+        """A well-formed colors.md is parsed into colors and color_vars dicts."""
+        content = (
+            '- title:: Colors\n'
+            '  public:: false\n'
+            '\n'
+            '- light\n'
+            '\t- background:: #FFFFFF\n'
+            '\t- text_primary:: #1a1a1a\n'
+            '- dark\n'
+            '\t- background:: #1d1e20\n'
+            '\t- text_primary:: #dadada\n'
+            '- vars\n'
+            '\t- background:: --body-background\n'
+            '\t- text_primary:: --primary\n'
+        )
+        graph = self._make_graph(content)
+        colors, color_vars = load_colors(graph)
+        self.assertEqual(colors['light']['background'], '#FFFFFF')
+        self.assertEqual(colors['light']['text_primary'], '#1a1a1a')
+        self.assertEqual(colors['dark']['background'], '#1d1e20')
+        self.assertEqual(colors['dark']['text_primary'], '#dadada')
+        self.assertEqual(color_vars['background'], '--body-background')
+        self.assertEqual(color_vars['text_primary'], '--primary')
+
+    def test_colors_md_empty_sections_returns_none(self):
+        """A colors.md with no actual values returns (None, None)."""
+        content = '- title:: Colors\n  public:: false\n'
+        graph = self._make_graph(content)
+        colors, color_vars = load_colors(graph)
+        self.assertIsNone(colors)
+        self.assertIsNone(color_vars)
+
+    def test_colors_md_partial_only_vars(self):
+        """A colors.md with only vars section is valid."""
+        content = (
+            '- vars\n'
+            '\t- background:: --body-background\n'
+        )
+        graph = self._make_graph(content)
+        colors, color_vars = load_colors(graph)
+        self.assertEqual(color_vars['background'], '--body-background')
+        self.assertEqual(colors, {})
+
+    def test_colors_md_page_props_skipped(self):
+        """Page-level properties (title::, public::) are not parsed as color keys."""
+        content = (
+            'title:: Colors\n'
+            'public:: false\n'
+            '\n'
+            '- light\n'
+            '\t- bg:: #FFF\n'
+        )
+        graph = self._make_graph(content)
+        colors, color_vars = load_colors(graph)
+        self.assertNotIn('title', colors.get('light', {}))
+        self.assertEqual(colors['light']['bg'], '#FFF')
 
 
 if __name__ == '__main__':

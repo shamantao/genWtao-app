@@ -136,20 +136,30 @@ public:: false
 	- en:: Contact"
 
 # colors.md
-create_if_missing "colors.md" "title:: Colors
-public:: false
+create_if_missing "colors.md" "- title:: Colors
+  public:: false
 
-Configure your theme colors in config.yaml (colors: section) at the root of your graph.
-This page is a reminder — the engine reads colors from config.yaml, not from here.
-
-- Light theme
-	- background:: rgb(255, 255, 255)
-	- text_primary:: rgb(30, 30, 30)
-	- text_secondary:: rgb(108, 108, 108)
-- Dark theme
-	- background:: rgb(29, 30, 32)
-	- text_primary:: rgb(218, 218, 219)
-	- text_secondary:: rgb(155, 156, 157)"
+- # Theme Colors
+- Define your site colors here. The engine reads this file and generates theme-colors.css.
+- Uncomment and adapt the values below. Remove the \`# \` at the start of each line to activate.
+- light
+	- # background:: #FFFFFF
+	- # text_primary:: #1a1a1a
+	- # text_secondary:: #6c6c6c
+	- # surface:: #f4f4f5
+	- # accent:: #0070f3
+- dark
+	- # background:: #1d1e20
+	- # text_primary:: #dadada
+	- # text_secondary:: #9b9c9d
+	- # surface:: #2e2e33
+	- # accent:: #3b82f6
+- vars
+	- # background:: --body-background
+	- # text_primary:: --primary
+	- # text_secondary:: --secondary
+	- # surface:: --entry
+	- # accent:: --tertiary"
 
 # widgets.md
 create_if_missing "widgets.md" "title:: Widgets

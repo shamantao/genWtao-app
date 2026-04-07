@@ -3,7 +3,7 @@
 logseq_to_hugo.py
 Converts Logseq pages to Hugo Markdown files.
 
-Usage (v0.9.5):
+Usage (v0.9.6):
     python3 logseq_to_hugo.py [--clean]
     python3 logseq_to_hugo.py --graph /path/to/graph --clean
 
@@ -334,6 +334,67 @@ def generate_i18n_from_sitemap(sitemap_entries, hugo_site_dir):
             encoding='utf-8',
         )
     print(f'🗺️  Generated i18n nav labels from sitemap.md ({len(all_langs)} language(s))')
+
+
+# ──────────────────────────────────────────────
+# COLORS SYSTEM
+# ──────────────────────────────────────────────
+
+def load_colors(graph_dir):
+    """Parse pages/colors.md from the Logseq graph.
+
+    Expected format (Logseq outline):
+        - light
+            - background:: #FFFFFF
+            - text_primary:: #1a1a1a
+        - dark
+            - background:: #1a1a1a
+            - text_primary:: #f0f0f0
+        - vars
+            - background:: --body-background
+            - text_primary:: --entry-color
+
+    Returns (colors, color_vars) where:
+        colors     = {'light': {'background': '#FFFFFF', ...}, 'dark': {...}}
+        color_vars = {'background': '--body-background', ...}
+    Returns (None, None) if colors.md does not exist.
+    """
+    colors_path = Path(graph_dir) / 'pages' / 'colors.md'
+    if not colors_path.exists():
+        return None, None
+
+    text = colors_path.read_text(encoding='utf-8')
+    colors     = {}
+    color_vars = {}
+    current_section = None
+
+    for line in text.splitlines():
+        stripped = line.strip()
+        # Skip page-level properties or blank lines
+        if not stripped or re.match(r'^\w[\w_-]*::[ \t]', stripped):
+            continue
+
+        # Top-level bullet: mode name (light / dark / vars)
+        top_match = re.match(r'^- (\w[\w-]*)$', stripped)
+        if top_match:
+            current_section = top_match.group(1).lower()
+            continue
+
+        # Sub-bullet with property (e.g. "    - background:: #FFFFFF")
+        if current_section and re.match(r'^[\t ]+- ', line):
+            sub_match = re.match(r'^([\w][\w_-]*)::[ \t]*(.*)', stripped.lstrip('- '))
+            if sub_match:
+                key = sub_match.group(1).lower()
+                val = sub_match.group(2).strip()
+                if current_section == 'vars':
+                    color_vars[key] = val
+                else:
+                    colors.setdefault(current_section, {})[key] = val
+
+    if not colors and not color_vars:
+        return None, None
+
+    return colors, color_vars
 
 
 # ──────────────────────────────────────────────
@@ -1508,9 +1569,14 @@ def main():
     config_was_loaded = config_path is not None
     generate_hugo_yaml(hugo_block, hosting, languages, output_dir.parent, config_was_loaded)
 
-    # Generate theme-colors.css from config.yaml colors: and color_vars:
+    # Generate theme-colors.css — colors.md (graph) takes priority over config.yaml
     hugo_static = output_dir.parent / 'static'
-    generate_theme_colors_css(colors, color_vars, hugo_static)
+    graph_colors, graph_color_vars = load_colors(graph_dir)
+    if graph_colors is not None or graph_color_vars is not None:
+        print(f'🎨 Colors loaded from pages/colors.md (overrides config.yaml colors:)')
+        generate_theme_colors_css(graph_colors or {}, graph_color_vars or {}, hugo_static)
+    else:
+        generate_theme_colors_css(colors, color_vars, hugo_static)
 
     # Generate data/languages.yaml from config.yaml languages:
     generate_languages_data(languages, output_dir.parent, config_was_loaded=config_was_loaded)
