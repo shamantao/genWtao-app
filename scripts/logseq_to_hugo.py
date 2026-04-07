@@ -3,7 +3,7 @@
 logseq_to_hugo.py
 Converts Logseq pages to Hugo Markdown files.
 
-Usage (v0.9.6):
+Usage (v0.9.7):
     python3 logseq_to_hugo.py [--clean]
     python3 logseq_to_hugo.py --graph /path/to/graph --clean
 

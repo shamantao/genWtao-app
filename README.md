@@ -15,11 +15,12 @@ Theme: [PaperMod](https://github.com/adityatelange/hugo-PaperMod) · License: [M
 5. [Languages & translation](#languages--translation) — multilingual, language switcher
 6. [Contact form](#contact-form) — providers, setup
 7. [Widgets](#widgets) — embed buttons, videos, HTML
-8. [Publishing](#publishing) — push, trigger, deploy
-9. [Initial setup](#initial-setup)
-10. [Troubleshooting](#troubleshooting)
-11. [Advanced — project layout & theme portability](#advanced--project-layout--theme-portability)
-12. [Tips & tricks](#tips--tricks) — future dates, video embeds, journal structure
+8. [Theme colors](#theme-colors) — customize your palette from Logseq
+9. [Publishing](#publishing) — push, trigger, deploy
+10. [Initial setup](#initial-setup)
+11. [Troubleshooting](#troubleshooting)
+12. [Advanced — project layout & theme portability](#advanced--project-layout--theme-portability)
+13. [Tips & tricks](#tips--tricks) — future dates, video embeds, journal structure
 
 ---
 
@@ -440,6 +441,50 @@ The script replaces it with the actual HTML when building the site.
 
 ---
 
+## Theme colors
+
+You define your site's color palette in `pages/colors.md` inside your Logseq graph — no CSS or config file to edit.
+
+### Format in Logseq
+
+```
+- light
+	- background:: #FFFFFF
+	- text_primary:: #1a1a1a
+	- text_secondary:: #6c6c6c
+	- surface:: #f4f4f5
+	- accent:: #0070f3
+- dark
+	- background:: #1d1e20
+	- text_primary:: #dadada
+	- text_secondary:: #9b9c9d
+	- surface:: #2e2e33
+	- accent:: #3b82f6
+- vars
+	- background:: --body-background
+	- text_primary:: --primary
+	- text_secondary:: --secondary
+	- surface:: --entry
+	- accent:: --tertiary
+```
+
+Three sections:
+- **`light`** — hex values for light mode
+- **`dark`** — hex values for dark mode
+- **`vars`** — which CSS variable each semantic name maps to (theme-specific)
+
+The script generates `site/static/css/theme-colors.css` automatically from this file.
+
+### Fallback
+
+If `colors.md` is absent, the engine falls back to `colors:` and `color_vars:` blocks in your graph's `config.yaml`. If neither is defined, a blank `theme-colors.css` is generated (the site uses the theme's default colors).
+
+### Getting started
+
+`install.sh` creates a `colors.md` template in your graph with commented-out values. Uncomment and adapt.
+
+---
+
 ## Publishing
 
 ### Automatic (recommended)
@@ -620,6 +665,7 @@ your-logseq-graph/                        ← separate repository (private)
 ├── config.yaml                           ← site config (hosting, hugo, languages)
 ├── pages/
 │   ├── sitemap.md                        ← site structure, menus, contact provider
+│   ├── colors.md                         ← theme color palette (light/dark)
 │   └── widgets.md                        ← widget definitions
 ├── journals/                             ← daily journal (optional article source)
 └── assets/                               ← images used in your pages
