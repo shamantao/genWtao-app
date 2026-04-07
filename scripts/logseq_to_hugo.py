@@ -3,7 +3,7 @@
 logseq_to_hugo.py
 Converts Logseq pages to Hugo Markdown files.
 
-Usage (v0.8):
+Usage (v0.9.4):
     python3 logseq_to_hugo.py [--clean]
     python3 logseq_to_hugo.py --graph /path/to/graph --clean
 
@@ -826,14 +826,21 @@ def apply_inline_conversions(line, lang, page_index=None):
 # ──────────────────────────────────────────────
 
 def parse_logseq_properties(text):
-    """Extract key:: value properties from the top of a Logseq page."""
+    """Extract key:: value properties from the top of a Logseq page.
+
+    Supports both formats:
+      - Page-level:  key:: value
+      - Block-level: - key:: value  (Logseq-native outline format)
+    """
     props = {}
     for line in text.splitlines():
-        m = re.match(r'^(\w[\w_-]*)::[ \t]*(.*)', line.strip())
+        # Strip leading bullet marker so block-level "- key:: value" is handled
+        candidate = re.sub(r'^-\s+', '', line.strip())
+        m = re.match(r'^(\w[\w_-]*)::[ \t]*(.*)', candidate)
         if m:
             props[m.group(1).lower()] = m.group(2).strip()
         elif line.strip() and not line.startswith('-'):
-            break  # end of properties block
+            break  # end of properties block (non-empty, non-bullet line)
     return props
 
 
@@ -868,7 +875,9 @@ def convert_content(text, internal_keys, lang='fr', widgets=None, page_index=Non
     for line in lines:
         # Skip the properties block at the top of the file
         if in_props:
-            if re.match(r'^\w[\w_-]*::[ \t]', line.strip()) or line.strip() == '':
+            # Support both page-level (key:: value) and block-level (- key:: value)
+            candidate = re.sub(r'^-\s+', '', line.strip())
+            if re.match(r'^\w[\w_-]*::[ \t]', candidate) or line.strip() == '':
                 continue
             else:
                 in_props = False
