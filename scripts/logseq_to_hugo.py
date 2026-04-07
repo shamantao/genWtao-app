@@ -3,7 +3,7 @@
 logseq_to_hugo.py
 Converts Logseq pages to Hugo Markdown files.
 
-Usage (v0.9.7):
+Usage (v0.10.0):
     python3 logseq_to_hugo.py [--clean]
     python3 logseq_to_hugo.py --graph /path/to/graph --clean
 
@@ -129,6 +129,7 @@ def load_config(config_path):
         'hugo':                 {},
         'hosting':              {},
         'journal_articles':     False,
+        'search_enabled':       False,
     }
     if not config_path:
         return defaults
@@ -153,6 +154,7 @@ def load_config(config_path):
             'hugo':      cfg.get('hugo', {}),
             'hosting':   cfg.get('hosting', {}),
             'journal_articles': cfg.get('journal_articles', False),
+            'search_enabled':   cfg.get('search_enabled', False),
         }
     except Exception as e:
         print(f"  ⚠️  Config not loaded ({e}), using defaults.", file=sys.stderr)
@@ -297,6 +299,25 @@ def sitemap_to_menus(sitemap_entries, hugo_block):
             if 'menu' not in lang_cfg:
                 lang_cfg['menu'] = {}
             lang_cfg['menu']['main'] = menu_items
+
+
+def generate_search_pages(languages, output_dir):
+    """
+    Generate content/{lang}/search/_index.md for each configured language.
+
+    Called by main() when search_enabled: true in config.yaml.
+    The layout: search front matter key activates PaperMod's Fuse.js search page.
+    The page itself displays nothing — Fuse.js handles the UI via search.js.
+    """
+    lang_codes = [k for k in languages if k not in ('display',)]
+    generated = []
+    for lang in lang_codes:
+        search_dir = Path(output_dir) / lang / 'search'
+        search_dir.mkdir(parents=True, exist_ok=True)
+        out_path = search_dir / '_index.md'
+        out_path.write_text('---\nlayout: search\n---\n', encoding='utf-8')
+        generated.append(str(out_path))
+    return generated
 
 
 def generate_i18n_from_sitemap(sitemap_entries, hugo_site_dir):
@@ -490,14 +511,23 @@ def render_widget(name, props):
     return f'<!-- unknown widget service "{service}" for "{name}" -->'
 
 
-def apply_widgets(text, widgets):
+def apply_widgets(text, widgets, lang='fr'):
     """Replace all {{widget name}} placeholders in text with rendered HTML."""
-    if not widgets:
+    if not widgets and '{{widget search}}' not in text:
         return text
 
     def replace_widget(m):
         name = m.group(1).strip()
-        if name in widgets:
+        # Built-in search widget — redirects to the search page with a pre-filled query
+        if name == 'search':
+            action = f'/{lang}/search/'
+            return (
+                f'<form action="{action}" method="get" class="search-widget">'
+                f'<input type="search" name="q" placeholder="🔍">'
+                f'<button type="submit">→</button>'
+                f'</form>'
+            )
+        if widgets and name in widgets:
             return render_widget(name, widgets[name])
         return f'<!-- widget "{name}" not found in widgets.md -->'
 
@@ -558,7 +588,7 @@ def generate_languages_data(languages, hugo_static_parent, config_was_loaded):
 # HUGO CONFIG GENERATOR
 # ──────────────────────────────────────────────
 
-def generate_hugo_yaml(hugo_block, hosting, languages, hugo_site_dir, config_was_loaded):
+def generate_hugo_yaml(hugo_block, hosting, languages, hugo_site_dir, config_was_loaded, search_enabled=False):
     """
     Generate site/hugo.yaml from config.yaml hugo: block.
 
@@ -598,6 +628,18 @@ def generate_hugo_yaml(hugo_block, hosting, languages, hugo_site_dir, config_was
                 lang_cfg['languageName'] = top['name']
             if 'contentDir' not in lang_cfg:
                 lang_cfg['contentDir'] = f'content/{lang_code}'
+
+    # Inject search outputs + fuseOpts when search is enabled
+    if search_enabled:
+        hugo_block.setdefault('outputs', {})['home'] = ['HTML', 'RSS', 'JSON']
+        hugo_block.setdefault('params', {}).setdefault('fuseOpts', {
+            'isCaseSensitive': False,
+            'shouldSort': True,
+            'location': 0,
+            'distance': 1000,
+            'minMatchCharLength': 2,
+            'keys': ['title', 'permalink', 'summary', 'content'],
+        })
 
     # Derive baseURL from hosting.site_url
     site_url = hosting.get('site_url', '')
@@ -1020,7 +1062,7 @@ def convert_content(text, internal_keys, lang='fr', widgets=None, page_index=Non
     # Apply widgets AFTER all inline conversions so that HTML inside
     # widgets (e.g. hex colours like #40DCA5) is not mangled by the
     # Logseq #tag → link conversion.
-    result = apply_widgets(result, widgets)
+    result = apply_widgets(result, widgets, lang=lang)
 
     # Safety net: escape any remaining {{...}} that are NOT Hugo shortcodes
     # (shortcodes contain < or >: {{< youtube ID >}}).  Unrecognised macros
@@ -1476,7 +1518,7 @@ def main():
         if candidate.exists():
             config_path = str(candidate)
 
-    # 3. Load engine config
+    # Load engine config
     cfg            = load_config(config_path)
     valid_types    = cfg['valid_types']
     legacy_sections = cfg['legacy_sections']
@@ -1484,6 +1526,7 @@ def main():
     theme_params   = cfg['theme_params']
     colors         = cfg['colors']
     color_vars     = cfg['color_vars']
+    search_enabled = cfg.get('search_enabled', False)
 
     # Resolve output_dir: CLI > default (site/content)
     if args.output:
@@ -1567,7 +1610,8 @@ def main():
 
     # Generate hugo.yaml from config.yaml hugo: block
     config_was_loaded = config_path is not None
-    generate_hugo_yaml(hugo_block, hosting, languages, output_dir.parent, config_was_loaded)
+    generate_hugo_yaml(hugo_block, hosting, languages, output_dir.parent, config_was_loaded,
+                       search_enabled=search_enabled)
 
     # Generate theme-colors.css — colors.md (graph) takes priority over config.yaml
     hugo_static = output_dir.parent / 'static'
@@ -1584,6 +1628,16 @@ def main():
     # Generate i18n nav labels from sitemap.md
     if sitemap_entries:
         generate_i18n_from_sitemap(sitemap_entries, output_dir.parent)
+
+    # Generate search pages (layout: search) for each language if enabled
+    if search_enabled:
+        search_pages = generate_search_pages(languages, output_dir)
+        if search_pages:
+            print(f'🔍 Search pages generated: {len(search_pages)} language(s) (search_enabled: true)')
+            for sp in search_pages:
+                print(f'  ✅ {sp}')
+    else:
+        print('  ℹ️  Search disabled (search_enabled: false in config.yaml)')
 
     exported    = []
     skipped     = []

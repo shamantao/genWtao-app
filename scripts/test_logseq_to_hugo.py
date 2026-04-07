@@ -18,6 +18,8 @@ from logseq_to_hugo import (
     process_file,
     resolve_props,
     load_colors,
+    apply_widgets,
+    generate_search_pages,
     DEFAULT_INTERNAL_KEYS,
     DEFAULT_SECTIONS,
     VALID_TYPES,
@@ -475,6 +477,69 @@ class TestLoadColors(unittest.TestCase):
         colors, color_vars = load_colors(graph)
         self.assertNotIn('title', colors.get('light', {}))
         self.assertEqual(colors['light']['bg'], '#FFF')
+
+
+# ──────────────────────────────────────────────
+class TestSearchFeature(unittest.TestCase):
+    """EPIC-0.12 — Tests pour generate_search_pages et {{widget search}}."""
+
+    def _make_output_dir(self):
+        tmp = tempfile.mkdtemp()
+        return Path(tmp)
+
+    def test_generate_search_pages_creates_files_per_lang(self):
+        """search_enabled: true → un fichier _index.md par langue."""
+        output_dir = self._make_output_dir()
+        languages = {'fr': {}, 'en': {}, 'zh-tw': {}}
+        generated = generate_search_pages(languages, output_dir)
+        self.assertEqual(len(generated), 3)
+        for lang in ('fr', 'en', 'zh-tw'):
+            p = output_dir / lang / 'search' / '_index.md'
+            self.assertTrue(p.exists(), f'Missing search page for {lang}')
+            content = p.read_text(encoding='utf-8')
+            self.assertIn('layout: search', content)
+
+    def test_generate_search_pages_skips_display_key(self):
+        """La clé 'display' (non-langue) est ignorée."""
+        output_dir = self._make_output_dir()
+        languages = {'display': 'flag', 'fr': {}, 'en': {}}
+        generated = generate_search_pages(languages, output_dir)
+        self.assertEqual(len(generated), 2)
+        self.assertFalse((output_dir / 'display').exists())
+
+    def test_generate_search_pages_empty_languages(self):
+        """Aucune langue configurée → liste vide."""
+        output_dir = self._make_output_dir()
+        generated = generate_search_pages({}, output_dir)
+        self.assertEqual(generated, [])
+
+    def test_widget_search_fr(self):
+        """{{widget search}} avec lang fr → form action /fr/search/."""
+        text = '{{widget search}}'
+        result = apply_widgets(text, widgets=None, lang='fr')
+        self.assertIn('action="/fr/search/"', result)
+        self.assertIn('name="q"', result)
+
+    def test_widget_search_en(self):
+        """{{widget search}} avec lang en → form action /en/search/."""
+        text = '{{widget search}}'
+        result = apply_widgets(text, widgets=None, lang='en')
+        self.assertIn('action="/en/search/"', result)
+
+    def test_widget_search_zh_tw(self):
+        """{{widget search}} avec lang zh-tw → form action /zh-tw/search/."""
+        text = '{{widget search}}'
+        result = apply_widgets(text, widgets=None, lang='zh-tw')
+        self.assertIn('action="/zh-tw/search/"', result)
+
+    def test_widget_search_overrides_widgets_md(self):
+        """Le widget search intégré prend le dessus même si widgets.md définit 'search'."""
+        text = '{{widget search}}'
+        # Simulate a custom 'search' widget in widgets.md (should be ignored)
+        widgets = {'search': {'service': 'html', 'html': '<p>custom</p>'}}
+        result = apply_widgets(text, widgets=widgets, lang='fr')
+        self.assertIn('action="/fr/search/"', result)
+        self.assertNotIn('<p>custom</p>', result)
 
 
 if __name__ == '__main__':

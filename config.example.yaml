@@ -76,3 +76,11 @@ hugo:
         goldmark:
             renderer:
                 unsafe: true
+
+# ──────────────────────────────────────────────────────────────
+# Search — Fuse.js client-side search (PaperMod native)
+# ──────────────────────────────────────────────────────────────
+# When enabled, the script generates a /search/ page per language
+# and configures Hugo to output index.json (required by Fuse.js).
+# Use {{widget search}} on any collection page to add a search field.
+search_enabled: false
