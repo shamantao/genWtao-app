@@ -3,7 +3,7 @@
 logseq_to_hugo.py
 Converts Logseq pages to Hugo Markdown files.
 
-Usage (v0.9.4):
+Usage (v0.9.5):
     python3 logseq_to_hugo.py [--clean]
     python3 logseq_to_hugo.py --graph /path/to/graph --clean
 
@@ -220,6 +220,20 @@ def load_sitemap(graph_dir):
         entries.append(current)
 
     return entries if entries else None
+
+
+def sitemap_labels_by_section(sitemap_entries):
+    """Build a {section: {lang: label}} dict from sitemap entries.
+
+    Used to provide human-readable titles and descriptions for collection
+    pages (og:title, og:description, twitter:description) instead of the
+    internal Logseq page name (e.g. 'Blog-fr').
+    """
+    labels = {}
+    for entry in sitemap_entries:
+        if entry.get('labels'):
+            labels[entry['section']] = dict(entry['labels'])
+    return labels
 
 
 def sitemap_to_sections(sitemap_entries):
@@ -963,13 +977,16 @@ def convert_content(text, internal_keys, lang='fr', widgets=None, page_index=Non
 # HUGO FRONT MATTER BUILDER
 # ──────────────────────────────────────────────
 
-def resolve_props(props, source_file, sections_map, valid_types, legacy_sections):
+def resolve_props(props, source_file, sections_map, valid_types, legacy_sections,
+                  sitemap_labels=None):
     """Resolve auto-deduced properties and normalise the v0.5 / legacy model.
 
     Detects whether the page uses the new model (menu:: present) or the
     legacy model (type:: is a section name).  Populates internal keys
     _title, _slug, _translationkey, _section, _page_type used by
     build_front_matter and output_path.
+
+    sitemap_labels: optional {section: {lang: label}} for collection title override.
 
     Returns a list of validation warnings (empty = OK).
     """
@@ -1007,7 +1024,18 @@ def resolve_props(props, source_file, sections_map, valid_types, legacy_sections
         section   = ''
 
     # --- Auto-deduce title, slug, translationKey ----------------------
-    title = props.get('title', Path(source_file).stem)
+    stem  = Path(source_file).stem
+    title = props.get('title', stem)
+
+    # For collections: if title is the technical filename (e.g. 'Blog-fr'),
+    # override with the human-readable sitemap label for better SEO (og:title).
+    if page_type == 'collection' and sitemap_labels and section in sitemap_labels:
+        lang_key = props.get('lang', 'fr').lower()
+        label = (sitemap_labels[section].get(lang_key)
+                 or sitemap_labels[section].get('en', ''))
+        if label and title == stem:
+            title = label
+
     slug  = props.get('slug', re.sub(r'[^\w-]', '-', title.lower()).strip('-'))
 
     # translationKey: explicit wins, else auto
@@ -1028,7 +1056,7 @@ def resolve_props(props, source_file, sections_map, valid_types, legacy_sections
     return warnings
 
 
-def build_front_matter(props, source_file, tags=None, theme_params=None):
+def build_front_matter(props, source_file, tags=None, theme_params=None, sitemap_labels=None):
     """Build Hugo YAML front matter from Logseq page properties.
 
     v0.5 model: type:: is behavioural (page/article/collection/form),
@@ -1036,6 +1064,9 @@ def build_front_matter(props, source_file, tags=None, theme_params=None):
 
     Retrocompat: if no menu:: is present, falls back to v0.4 behaviour
     where type:: is the section name directly.
+
+    sitemap_labels: optional {section: {lang: label}} used to inject a
+    description on collection pages when description:: is not set.
     """
     if theme_params is None:
         theme_params = DEFAULT_THEME_PARAMS
@@ -1068,6 +1099,16 @@ def build_front_matter(props, source_file, tags=None, theme_params=None):
     elif re.match(r'^\d{4}-\d{2}$', date):
         date = f'{date}-01'
     desc  = props.get('description', '')
+
+    # For collections: inject sitemap label as description when none is set.
+    # This populates og:description and twitter:description in PaperMod.
+    if not desc and ptype == 'collection' and sitemap_labels and section in sitemap_labels:
+        lang_key = props.get('lang', 'fr').lower()
+        label = (sitemap_labels[section].get(lang_key)
+                 or sitemap_labels[section].get('en', ''))
+        if label:
+            desc = label
+
     order = props.get('menu_order', '')
 
     toc = props.get('toc', 'false').lower() in ('true', '1', 'yes')
@@ -1311,7 +1352,7 @@ def build_page_index(pages_dir, sections_map, valid_types=None, legacy_sections=
 
 def process_file(src_path, output_dir, sections_map, internal_keys, theme_params=None,
                   widgets=None, collection_types=None, valid_types=None, legacy_sections=None,
-                  text=None, page_index=None):
+                  text=None, page_index=None, sitemap_labels=None):
     if text is None:
         text = Path(src_path).read_text(encoding='utf-8')
     props = parse_logseq_properties(text)
@@ -1328,11 +1369,13 @@ def process_file(src_path, output_dir, sections_map, internal_keys, theme_params
 
     _valid  = valid_types or VALID_TYPES
     _legacy = legacy_sections or DEFAULT_SECTIONS
-    warnings = resolve_props(props, src_path, sections_map, _valid, _legacy)
+    warnings = resolve_props(props, src_path, sections_map, _valid, _legacy,
+                             sitemap_labels=sitemap_labels)
 
     lang         = props.get('lang', 'fr').lower()
     tags         = extract_tags(text)
-    front_matter = build_front_matter(props, src_path, tags=tags or None, theme_params=theme_params)
+    front_matter = build_front_matter(props, src_path, tags=tags or None,
+                                      theme_params=theme_params, sitemap_labels=sitemap_labels)
     body         = convert_content(text, internal_keys, lang=lang, widgets=widgets, page_index=page_index)
     hugo_content = front_matter + '\n\n' + body
 
@@ -1400,8 +1443,10 @@ def main():
     sitemap_entries = load_sitemap(graph_dir)
     sections_map    = dict(legacy_sections)
     collection_types = set()
+    sitemap_labels   = {}
     if sitemap_entries:
         sm_sections, collection_types = sitemap_to_sections(sitemap_entries)
+        sitemap_labels = sitemap_labels_by_section(sitemap_entries)
         # Sitemap takes priority, legacy fills gaps
         for alias, target in sections_map.items():
             if alias not in sm_sections:
@@ -1496,7 +1541,7 @@ def main():
             theme_params=theme_params, widgets=widgets,
             collection_types=collection_types,
             valid_types=valid_types, legacy_sections=legacy_sections,
-            page_index=page_index)
+            page_index=page_index, sitemap_labels=sitemap_labels)
         if result:
             exported.append(result)
             print(f"  ✅ {md_file.name} → {result}")
@@ -1521,7 +1566,7 @@ def main():
                         theme_params=theme_params, widgets=widgets,
                         collection_types=collection_types,
                         valid_types=valid_types, legacy_sections=legacy_sections,
-                        text=page_text, page_index=page_index)
+                        text=page_text, page_index=page_index, sitemap_labels=sitemap_labels)
                     if result:
                         # Check slug conflict: pages/ wins over journals/
                         result_slug = Path(result).stem
